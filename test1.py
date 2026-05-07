@@ -224,11 +224,22 @@ footer {visibility: hidden;}
 
 
 /* إخفاء شريط التنبيهات والحاشية الوردية تماماً */
+div[data-testid="stStatusWidget"], 
+.stStatusWidget, 
 [data-testid="stStatusWidget"] {
-    visibility: hidden;
-    height: 0px;
-    width: 0px;
-    overflow: hidden;
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* إخفاء أي حاويات عائمة (Floating Elements) قد تظهر في الأركان */
+.stAppDeployButton, 
+.viewerBadge_container__1QSob, 
+.viewerBadge_link__1QSob {
+    display: none !important;
 }
     </style>
 """, unsafe_allow_html=True)
