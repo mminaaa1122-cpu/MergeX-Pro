@@ -188,6 +188,26 @@ st.markdown("""
     [data-testid="stFileUploaderFileName"] {
         color: #ffffff !important;
     }
+
+    /* إخفاء الشريط العلوي بالكامل تماماً */
+    [data-testid="stHeader"] {
+        display: none !important;
+    }
+
+    /* إخفاء القائمة الجانبية تماماً "الهمبرجر منيو" */
+    #MainMenu {
+        display: none !important;
+    }
+
+    /* إخفاء أي تذييل للصفحة */
+    footer {
+        display: none !important;
+    }
+
+    /* إخفاء زرار الـ Deploy */
+    .stDeployButton {
+        display:none !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
