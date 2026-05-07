@@ -178,11 +178,7 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* 2. إخفاء أيقونة GitHub والمنيو لضمان الخصوصية داخل الموقع */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stDeployButton {display:none;}
+   
 
     /* 3. توضيح أسماء الملفات المرفوعة */
     [data-testid="stFileUploaderFileName"] {
@@ -208,6 +204,22 @@ st.markdown("""
     .stDeployButton {
         display:none !important;
     }
+
+    
+.viewerBadge_container__1QSob {
+    display: none !important;
+}
+
+
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+.stDeployButton {display:none !important;}
+
+
+[data-testid="stStatusWidget"] {
+    visibility: hidden;
+}
     </style>
 """, unsafe_allow_html=True)
 
