@@ -168,6 +168,26 @@ st.markdown("""
     [data-testid="stFileUploaderDeleteBtn"] svg {
         fill: #ffffff !important;
     }
+
+    /* 1. تفتيح أرقام الإحصائيات وعناوينها */
+    [data-testid="stMetricLabel"] p {
+        color: #a78bfa !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stMetricValue"] {
+        color: #ffffff !important;
+    }
+
+    /* 2. إخفاء أيقونة GitHub والمنيو لضمان الخصوصية داخل الموقع */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stDeployButton {display:none;}
+
+    /* 3. توضيح أسماء الملفات المرفوعة */
+    [data-testid="stFileUploaderFileName"] {
+        color: #ffffff !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
