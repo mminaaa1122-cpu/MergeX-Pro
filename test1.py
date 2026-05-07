@@ -224,23 +224,39 @@ footer {visibility: hidden;}
 
 
 /* إخفاء شريط التنبيهات والحاشية الوردية تماماً */
-div[data-testid="stStatusWidget"], 
-.stStatusWidget, 
-[data-testid="stStatusWidget"] {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0 !important;
-    width: 0 !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
+/* --- الحل النهائي والشامل لإخفاء كل الزوائد --- */
 
-/* إخفاء أي حاويات عائمة (Floating Elements) قد تظهر في الأركان */
-.stAppDeployButton, 
-.viewerBadge_container__1QSob, 
-.viewerBadge_link__1QSob {
-    display: none !important;
-}
+    /* 1. إخفاء أيقونة GitHub وشريط الحالة (الجزء الذي سألت عنه) */
+    [data-testid="stStatusWidget"],
+    div[class*="stStatusWidget"],
+    div[class^="stStatusWidget"],
+    div[class*="viewerBadge"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        height: 0 !important;
+        width: 0 !important;
+    }
+
+    /* 2. إخفاء الرأس (Header) بالكامل */
+    header, [data-testid="stHeader"] {
+        display: none !important;
+    }
+
+    /* 3. إخفاء زر Deploy */
+    .stDeployButton, [data-testid="stAppDeployButton"] {
+        display: none !important;
+    }
+
+    /* 4. إخفاء المنيو (القائمة الجانبية) والتذييل */
+    #MainMenu, footer {
+        display: none !important;
+    }
+
+    /* 5. تنظيف أي مساحات فارغة قد تظهر في الأعلى بعد الإخفاء */
+    .block-container {
+        padding-top: 2rem !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
