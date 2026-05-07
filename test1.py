@@ -220,6 +220,16 @@ footer {visibility: hidden;}
 [data-testid="stStatusWidget"] {
     visibility: hidden;
 }
+
+
+
+/* إخفاء شريط التنبيهات والحاشية الوردية تماماً */
+[data-testid="stStatusWidget"] {
+    visibility: hidden;
+    height: 0px;
+    width: 0px;
+    overflow: hidden;
+}
     </style>
 """, unsafe_allow_html=True)
 
