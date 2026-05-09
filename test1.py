@@ -3,6 +3,7 @@ import pandas as pd
 from openpyxl import load_workbook
 from io import BytesIO
 import time
+from datetime import datetime
 
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
@@ -28,15 +29,7 @@ st.markdown("""
     [data-testid="stAppViewContainer"] {
         background: radial-gradient(circle at top right, #1e1b4b, #0f172a) !important;
         background-attachment: fixed !important;
-    }
-    
-    #MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-header {visibility: hidden;}
-[data-testid="stToolbar"] {
-    display: none;
-   }
-
+    }                                              
     [data-testid="stHeader"] {
         background: transparent !important;
     }
@@ -401,7 +394,9 @@ def main():
         
         template_info = TEMPLATES[selected_template_key]
         TEMPLATE_FILE = template_info["file"]
-        DEFAULT_VALS = template_info["defaults"]
+        DEFAULT_VALS = template_info["defaults"].copy()
+
+        DEFAULT_VALS["Call Date"] = datetime.now().strftime("%d/%m/%Y")
 
         # تحميل القالب (مخزن مؤقتًا)
         wb_template = load_excel_template(TEMPLATE_FILE)
