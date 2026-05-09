@@ -3,6 +3,7 @@ import pandas as pd
 from openpyxl import load_workbook
 from io import BytesIO
 import time
+import pytz
 from datetime import datetime
 
 # ────────────────────────────────────────────────
@@ -394,9 +395,12 @@ def main():
         
         template_info = TEMPLATES[selected_template_key]
         TEMPLATE_FILE = template_info["file"]
+
+        egypt_timezone = pytz.timezone('Africa/Cairo')
+        current_date = datetime.now(egypt_timezone).strftime("%d/%m/%Y")
         DEFAULT_VALS = template_info["defaults"].copy()
 
-        DEFAULT_VALS["Call Date"] = datetime.now().strftime("%d/%m/%Y")
+        DEFAULT_VALS["Call Date"] = current_date
 
         # تحميل القالب (مخزن مؤقتًا)
         wb_template = load_excel_template(TEMPLATE_FILE)
