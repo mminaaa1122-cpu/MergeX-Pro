@@ -29,6 +29,13 @@ st.markdown("""
         background: radial-gradient(circle at top right, #1e1b4b, #0f172a) !important;
         background-attachment: fixed !important;
     }
+    
+    #MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+[data-testid="stToolbar"] {
+    display: none;
+   }
 
     [data-testid="stHeader"] {
         background: transparent !important;
