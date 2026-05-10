@@ -366,6 +366,11 @@ def process_single_file(file, mapping, final_cols, defaults):
                     for col, val in defaults.items():
                         df_subset[col] = val
 
+
+                        df_subset["⚠️ Name Warning"] = df_subset["Card Holder Name"].astype(str).apply(
+                           lambda x: "LONG NAME" if len(x.strip()) >= 23 else ""
+                        )
+
                     processed_sheets.append(df_subset)
                     
         return processed_sheets
@@ -480,8 +485,33 @@ def main():
             if st.button("🚀 توليد وتجهيز الملف للتحميل", key="generate_file"):
                 with st.spinner("جاري إنشاء ملف الإكسل..."):
                     output = BytesIO()
+
+                    from openpyxl.styles import PatternFill
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         combined_df.to_excel(writer, index=False, sheet_name="Merged_Data")
+
+                        workbook = writer.book
+                        worksheet = writer.sheets["Merged_Data"]
+
+
+                        red_fill = PatternFill(
+                           start_color="EF9A9A",
+                           end_color="EF9A9A",
+                           fill_type="solid"
+                        )
+
+
+
+                        name_col_index = combined_df.columns.get_loc("Card Holder Name") + 1
+
+
+                        for row in range(2, len(combined_df) + 2):
+
+                            cell = worksheet.cell(row=row, column=name_col_index)
+
+                            if len(str(cell.value).strip()) >= 23:
+
+                                cell.fill = red_fill
                     
                     st.download_button(
                         label="📥 اضغط هنا لتحميل الملف النهائي",
