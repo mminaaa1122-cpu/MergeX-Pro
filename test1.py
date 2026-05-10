@@ -366,11 +366,6 @@ def process_single_file(file, mapping, final_cols, defaults):
                     for col, val in defaults.items():
                         df_subset[col] = val
 
-
-                        df_subset["⚠️ Name Warning"] = df_subset["Card Holder Name"].astype(str).apply(
-                           lambda x: "LONG NAME" if len(x.strip()) >= 23 else ""
-                        )
-
                     processed_sheets.append(df_subset)
                     
         return processed_sheets
