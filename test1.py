@@ -8,7 +8,7 @@ from datetime import datetime
 import requests
 import json
 
-GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzr7ci476RvyD3IZPT8pxyjOl9c_IbgBpcnqjMDH07ihejVOu4UZp1DFZeR_VEI3UTr/exec"
+GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxcoRxp6A3iPC2IdlG60yQtDOvNRblmikMYgVe9oXbP-3pJJ_EsHSuq0jOvXJl0ZJY1dw/exec"
 
 def log_to_google_sheet(action, status="success"):
     try:
@@ -528,13 +528,15 @@ def main():
                             if len(str(cell.value).strip()) >= 23:
 
                                 cell.fill = red_fill
+
+                                log_to_google_sheet("File Downloaded", "success")
                     
                     st.download_button(
                         label="📥 اضغط هنا لتحميل الملف النهائي",
                         data=output.getvalue(),
                         file_name=f"MergeX_Output_{int(time.time())}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        on_click=lambda: log_to_google_sheet("File Downloaded", "success")
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        
                     )
                     st.balloons()
 
