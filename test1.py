@@ -5,27 +5,6 @@ from io import BytesIO
 import time
 import pytz
 from datetime import datetime
-import requests
-import json
-
-GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxcoRxp6A3iPC2IdlG60yQtDOvNRblmikMYgVe9oXbP-3pJJ_EsHSuq0jOvXJl0ZJY1dw/exec"
-
-def log_to_google_sheet(action, status="success"):
-    try:
-        payload = {
-            "action": action,
-            "status": status
-        }
-
-        response = requests.post(
-            GOOGLE_SCRIPT_URL,
-            json=payload
-        )
-
-        print(response.text)
-
-    except Exception as e:
-        print(e)
 
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
@@ -528,15 +507,12 @@ def main():
                             if len(str(cell.value).strip()) >= 23:
 
                                 cell.fill = red_fill
-
-                                log_to_google_sheet("File Downloaded", "success")
                     
                     st.download_button(
                         label="📥 اضغط هنا لتحميل الملف النهائي",
                         data=output.getvalue(),
                         file_name=f"MergeX_Output_{int(time.time())}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        
                     )
                     st.balloons()
 
