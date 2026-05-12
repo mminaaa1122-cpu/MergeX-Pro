@@ -8,7 +8,7 @@ from datetime import datetime
 import requests
 import json
 
-GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzPYfKjIJVIAqD816u7BoCli8lPGgL5_lgk9E_M8ljDKn-oeDBdIGodKdZMeLzNCvk/exec"
+GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzr7ci476RvyD3IZPT8pxyjOl9c_IbgBpcnqjMDH07ihejVOu4UZp1DFZeR_VEI3UTr/exec"
 
 def log_to_google_sheet(action, status="success"):
     try:
@@ -17,10 +17,15 @@ def log_to_google_sheet(action, status="success"):
             "status": status
         }
 
-        requests.post(GOOGLE_SCRIPT_URL, data=json.dumps(payload))
+        response = requests.post(
+            GOOGLE_SCRIPT_URL,
+            json=payload
+        )
 
-    except:
-        pass
+        print(response.text)
+
+    except Exception as e:
+        print(e)
 
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
