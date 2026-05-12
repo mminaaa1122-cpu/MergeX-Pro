@@ -5,6 +5,22 @@ from io import BytesIO
 import time
 import pytz
 from datetime import datetime
+import requests
+import json
+
+GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzPYfKjIJVIAqD816u7BoCli8lPGgL5_lgk9E_M8ljDKn-oeDBdIGodKdZMeLzNCvk/exec"
+
+def log_to_google_sheet(action, status="success"):
+    try:
+        payload = {
+            "action": action,
+            "status": status
+        }
+
+        requests.post(GOOGLE_SCRIPT_URL, data=json.dumps(payload))
+
+    except:
+        pass
 
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
@@ -512,7 +528,8 @@ def main():
                         label="📥 اضغط هنا لتحميل الملف النهائي",
                         data=output.getvalue(),
                         file_name=f"MergeX_Output_{int(time.time())}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        on_click=lambda: log_to_google_sheet("File Downloaded", "success")
                     )
                     st.balloons()
 
