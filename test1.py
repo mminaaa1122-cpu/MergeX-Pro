@@ -6,6 +6,9 @@ import time
 import pytz
 from datetime import datetime
 
+from difflib import get_close_matches
+from openpyxl.styles import PatternFill
+
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
 # ────────────────────────────────────────────────
@@ -377,6 +380,25 @@ def process_single_file(file, mapping, final_cols, defaults):
 #               واجهة المستخدم الرئيسية
 # ────────────────────────────────────────────────
 
+VALID_DISTRICTS = ["10T", "6TH", "HGZ", "ALX","HC","TAG","HES","REH","HCK","HCO","HMA","MOK","CTY","HMD", "HCS","ABS","DOK","DT","GZ","HEL","MA","MOH","NC","SHB","ZA","15T"]  # عدّلهم حسب شغلك
+
+
+def fix_district(value):
+    value = str(value).strip().upper()
+
+    if value in VALID_DISTRICTS:
+        return value, False
+
+    matches = get_close_matches(value, VALID_DISTRICTS, n=2, cutoff=0.5)
+
+    if not matches:
+        return value, True
+    if len(matches) > 1:
+        if matches[0][:2] == matches[1][:2]:
+            return value, True
+
+    return matches[0], False
+
 def main():
     st.markdown("<h1 style='margin-bottom: 0.5rem;'>MergeX Pro ⚡</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 1.1rem;'>النظام الذكي لدمج ومعالجة ملفات الإكسل بسرعة فائقة</p>", unsafe_allow_html=True)
@@ -483,10 +505,46 @@ def main():
 
                     from openpyxl.styles import PatternFill
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        
                         combined_df.to_excel(writer, index=False, sheet_name="Merged_Data")
 
                         workbook = writer.book
                         worksheet = writer.sheets["Merged_Data"]
+
+                        
+
+                            
+
+
+                        district_col = combined_df.columns.get_loc("District") + 1
+
+                        red_fill = PatternFill(start_color="FF9999", end_color="FF9999", fill_type="solid")
+
+                        for row in range(2, len(combined_df) + 2):
+
+                                cell = worksheet.cell(row=row, column=district_col)
+                                fixed_value, has_problem = fix_district(cell.value)
+                                cell.value = fixed_value
+                                if has_problem:
+                                    cell.fill = red_fill
+
+                                
+
+                        
+                        
+
+
+                        if "Alico Name" in combined_df.columns:
+
+                            alico_col_index = combined_df.columns.get_loc("Alico Name") + 1
+
+                            max_col = worksheet.max_column
+
+                            if max_col > alico_col_index:
+
+                                worksheet.delete_cols(alico_col_index + 1, max_col - alico_col_index)
+
+                                from openpyxl.styles import PatternFill
 
 
                         red_fill = PatternFill(
@@ -503,6 +561,8 @@ def main():
                         for row in range(2, len(combined_df) + 2):
 
                             cell = worksheet.cell(row=row, column=name_col_index)
+
+                            cell.value = str(cell.value).rstrip().upper()
 
                             if len(str(cell.value).strip()) >= 23:
 
