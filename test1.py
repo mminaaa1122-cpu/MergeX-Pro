@@ -219,6 +219,27 @@ st.markdown("""
 header {visibility: hidden;}
 footer {visibility: hidden;}
 .stDeployButton {display:none !important;}
+            
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+            
+    [data-testid="stStatusWidget"] {
+        visibility: hidden !important;
+        display: none !important;
+    }
+            
+    footer {
+        visibility: hidden !important;
+    }
+            
+    .stDeployButton {
+        display: none !important;
+    }
+            
+    .stApp {
+        margin-top: -80px;
+    }
 
 
 [data-testid="stStatusWidget"] {
