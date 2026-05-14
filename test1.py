@@ -219,17 +219,6 @@ st.markdown("""
 header {visibility: hidden;}
 footer {visibility: hidden;}
 .stDeployButton {display:none !important;}
-            
-.stAppToolbar {display: none;}
-    
-    /* زيادة تأكيد لإخفاء أيقونة الـ Status في الركن السفلي */
-    div[data-testid="stStatusWidget"] {visibility: hidden;}
-    
-    /* إخفاء زرار الـ Deploy */
-    .stDeployButton {display: none;}
-    
-    /* إخفاء أي خطوط تزيين علوية */
-    .stDecoration {display:none;}
 
 
 [data-testid="stStatusWidget"] {
