@@ -528,6 +528,42 @@ def main():
                                 if has_problem:
                                     cell.fill = red_fill
 
+
+                                    # ────────────────────────────────────────────────
+                        # إضافة جديدة: تلوين الخانات الفارغة وتحديد مكانها بدقة
+                        # ────────────────────────────────────────────────
+                        empty_details = []  # قائمة هنخزن فيها أماكن الخانات الفاضية
+                        columns_to_check = ["Gender", "District", "Delivery Time"]
+                        
+                        # تحديد لون التنبيه (أحمر)
+                        alert_fill = PatternFill(start_color="FF9999", end_color="FF9999", fill_type="solid")
+
+                        for col_name in columns_to_check:
+                            # التأكد إن العمود موجود أصلاً في الملف
+                            if col_name in combined_df.columns:
+                                col_idx = combined_df.columns.get_loc(col_name) + 1
+                                
+                                for row in range(2, len(combined_df) + 2):
+                                    check_cell = worksheet.cell(row=row, column=col_idx)
+
+                                    if col_name in ["Gender", "Delivery Time"] and check_cell.value is not None:
+                                        # بيحول أي نص لـ كابيتال وبيشيل المسافات الزايدة
+                                        check_cell.value = str(check_cell.value).strip().upper()
+
+                                        
+                                    # لو الخانة فاضية تماماً
+                                    if check_cell.value is None or str(check_cell.value).strip() == "":
+                                        check_cell.fill = alert_fill
+                                        # نسجل اسم العمود ورقم الصف (في ملف الإكسل)
+                                        empty_details.append(f"- عمود **{col_name}** ➜ الصف رقم **{row}**")
+
+                        # إظهار التنبيه بتفاصيل الأماكن في الواجهة
+                        if empty_details:
+                            # دمج كل الأماكن في رسالة واحدة
+                            details_message = "\n".join(empty_details)
+                            st.warning(f"⚠️ **تنبيه:** تم العثور على خانات فارغة وتلوينها بالأحمر في الأماكن التالية:\n\n{details_message}")
+                        # ────────────────────────────────────────────────
+
                                 
 
                         
