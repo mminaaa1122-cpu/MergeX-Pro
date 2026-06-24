@@ -566,6 +566,43 @@ def main():
 
                                 
 
+
+
+                                # ────────────────────────────────────────────────
+                        # إضافة جديدة: فحص وتلوين الأرقام المكررة في عمود Mobile
+                        # ────────────────────────────────────────────────
+                        if "Mobile" in combined_df.columns:
+                            mobile_col_idx = combined_df.columns.get_loc("Mobile") + 1
+                            
+                            # تنظيف البيانات واستخراج الأرقام المتكررة فقط (مع تجاهل الخانات الفاضية)
+                            mobile_series = combined_df["Mobile"].fillna("").astype(str).str.strip()
+                            duplicate_numbers = mobile_series[mobile_series.duplicated(keep=False) & (mobile_series != "")]
+                            duplicate_values = set(duplicate_numbers.unique())
+                            
+                            duplicate_details = []
+                            # تحديد لون التنبيه للتكرار (برتقالي فاتح هادي مميز)
+                            dup_fill = PatternFill(start_color="FFE5CC", end_color="FFE5CC", fill_type="solid")
+
+                            for row in range(2, len(combined_df) + 2):
+                                cell = worksheet.cell(row=row, column=mobile_col_idx)
+                                cell_val = str(cell.value).strip() if cell.value is not None else ""
+                                
+                                # لو الرقم موجود في قائمة التكرار
+                                if cell_val in duplicate_values:
+                                    cell.fill = dup_fill
+                                    duplicate_details.append(f"- رقم **{cell_val}** ➜ الصف رقم **{row}**")
+
+                            # إظهار التنبيه في الواجهة قبل رسايل التحذير الأخرى
+                            if duplicate_details:
+                                dup_message = "\n".join(duplicate_details)
+                                st.warning(f"⚠️ **تنبيه بوجود تكرار:** تم العثور على أرقام هواتف مكررة وتلوينها بالبرتقالي في الأماكن التالية:\n\n{dup_message}")
+                        # ────────────────────────────────────────────────
+
+
+
+
+                        
+
                         
                         
 
