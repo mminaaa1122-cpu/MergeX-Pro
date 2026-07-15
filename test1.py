@@ -502,144 +502,94 @@ def main():
             if st.button("🚀 توليد وتجهيز الملف للتحميل", key="generate_file"):
                 with st.spinner("جاري إنشاء ملف الإكسل..."):
                     output = BytesIO()
+                    
+                    df_out = combined_df.copy()
 
-                    from openpyxl.styles import PatternFill
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        
-                        combined_df.to_excel(writer, index=False, sheet_name="Merged_Data")
+                    # 1. District fixing before writing
+                    district_problems = []
+                    if "District" in df_out.columns:
+                        new_districts = []
+                        for val in df_out["District"]:
+                            fixed_value, has_problem = fix_district(val)
+                            new_districts.append(fixed_value)
+                            district_problems.append(has_problem)
+                        df_out["District"] = new_districts
 
+                    # 2. Empty cells & text cleaning
+                    empty_details = []
+                    for col_name in ["Gender", "District", "Delivery Time"]:
+                        if col_name in df_out.columns:
+                            if col_name in ["Gender", "Delivery Time"]:
+                                df_out[col_name] = df_out[col_name].fillna("").astype(str).str.strip().str.upper()
+                            for i, val in enumerate(df_out[col_name]):
+                                if val is None or str(val).strip() == "":
+                                    empty_details.append(f"- عمود **{col_name}** ➜ الصف رقم **{i+2}**")
+
+                    if empty_details:
+                        details_message = "\\n".join(empty_details)
+                        st.warning(f"⚠️ **تنبيه:** تم العثور على خانات فارغة وتلوينها بالأحمر في الأماكن التالية:\\n\\n{details_message}")
+
+                    # 3. Mobile duplicates
+                    duplicate_details = []
+                    dup_mask = []
+                    if "Mobile" in df_out.columns:
+                        mobile_series = df_out["Mobile"].fillna("").astype(str).str.strip()
+                        dup_mask = (mobile_series.duplicated(keep=False) & (mobile_series != "")).tolist()
+                        for i, is_dup in enumerate(dup_mask):
+                            if is_dup:
+                                duplicate_details.append(f"- رقم **{mobile_series.iloc[i]}** ➜ الصف رقم **{i+2}**")
+                                
+                    if duplicate_details:
+                        dup_message = "\\n".join(duplicate_details)
+                        st.warning(f"⚠️ **تنبيه بوجود تكرار:** تم العثور على أرقام هواتف مكررة وتلوينها بالبرتقالي في الأماكن التالية:\\n\\n{dup_message}")
+
+                    # 4. Alico Name - Delete columns after
+                    if "Alico Name" in df_out.columns:
+                        alico_col_index = df_out.columns.get_loc("Alico Name")
+                        cols_to_drop = df_out.columns[alico_col_index + 1:]
+                        if len(cols_to_drop) > 0:
+                            df_out = df_out.drop(columns=cols_to_drop)
+
+                    # 5. Card Holder Name formatting
+                    if "Card Holder Name" in df_out.columns:
+                        df_out["Card Holder Name"] = df_out["Card Holder Name"].fillna("").astype(str).str.rstrip().str.upper()
+
+                    # Write using xlsxwriter
+                    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                        df_out.to_excel(writer, index=False, sheet_name="Merged_Data")
                         workbook = writer.book
                         worksheet = writer.sheets["Merged_Data"]
 
-                        
+                        # Formats
+                        red_format = workbook.add_format({"bg_color": "#FF9999"})
+                        dup_format = workbook.add_format({"bg_color": "#FFE5CC"})
+                        red_name_format = workbook.add_format({"bg_color": "#EF9A9A"})
 
-                            
+                        # Apply coloring by overwriting cells
+                        if "District" in df_out.columns:
+                            col_idx = df_out.columns.get_loc("District")
+                            for i, has_prob in enumerate(district_problems):
+                                if has_prob:
+                                    worksheet.write(i+1, col_idx, df_out.iloc[i]["District"], red_format)
 
+                        for col_name in ["Gender", "District", "Delivery Time"]:
+                            if col_name in df_out.columns:
+                                col_idx = df_out.columns.get_loc(col_name)
+                                for i, val in enumerate(df_out[col_name]):
+                                    if val is None or str(val).strip() == "":
+                                        worksheet.write_blank(i+1, col_idx, "", red_format)
 
-                        district_col = combined_df.columns.get_loc("District") + 1
+                        if "Mobile" in df_out.columns and dup_mask:
+                            col_idx = df_out.columns.get_loc("Mobile")
+                            for i, is_dup in enumerate(dup_mask):
+                                if is_dup:
+                                    worksheet.write(i+1, col_idx, df_out.iloc[i]["Mobile"], dup_format)
 
-                        red_fill = PatternFill(start_color="FF9999", end_color="FF9999", fill_type="solid")
-
-                        for row in range(2, len(combined_df) + 2):
-
-                                cell = worksheet.cell(row=row, column=district_col)
-                                fixed_value, has_problem = fix_district(cell.value)
-                                cell.value = fixed_value
-                                if has_problem:
-                                    cell.fill = red_fill
-
-
-                                    # ────────────────────────────────────────────────
-                        # إضافة جديدة: تلوين الخانات الفارغة وتحديد مكانها بدقة
-                        # ────────────────────────────────────────────────
-                        empty_details = []  # قائمة هنخزن فيها أماكن الخانات الفاضية
-                        columns_to_check = ["Gender", "District", "Delivery Time"]
-                        
-                        # تحديد لون التنبيه (أحمر)
-                        alert_fill = PatternFill(start_color="FF9999", end_color="FF9999", fill_type="solid")
-
-                        for col_name in columns_to_check:
-                            # التأكد إن العمود موجود أصلاً في الملف
-                            if col_name in combined_df.columns:
-                                col_idx = combined_df.columns.get_loc(col_name) + 1
-                                
-                                for row in range(2, len(combined_df) + 2):
-                                    check_cell = worksheet.cell(row=row, column=col_idx)
-
-                                    if col_name in ["Gender", "Delivery Time"] and check_cell.value is not None:
-                                        # بيحول أي نص لـ كابيتال وبيشيل المسافات الزايدة
-                                        check_cell.value = str(check_cell.value).strip().upper()
-
-                                        
-                                    # لو الخانة فاضية تماماً
-                                    if check_cell.value is None or str(check_cell.value).strip() == "":
-                                        check_cell.fill = alert_fill
-                                        # نسجل اسم العمود ورقم الصف (في ملف الإكسل)
-                                        empty_details.append(f"- عمود **{col_name}** ➜ الصف رقم **{row}**")
-
-                        # إظهار التنبيه بتفاصيل الأماكن في الواجهة
-                        if empty_details:
-                            # دمج كل الأماكن في رسالة واحدة
-                            details_message = "\n".join(empty_details)
-                            st.warning(f"⚠️ **تنبيه:** تم العثور على خانات فارغة وتلوينها بالأحمر في الأماكن التالية:\n\n{details_message}")
-                        # ────────────────────────────────────────────────
-
-                                
-
-
-
-                                # ────────────────────────────────────────────────
-                        # إضافة جديدة: فحص وتلوين الأرقام المكررة في عمود Mobile
-                        # ────────────────────────────────────────────────
-                        if "Mobile" in combined_df.columns:
-                            mobile_col_idx = combined_df.columns.get_loc("Mobile") + 1
-                            
-                            # تنظيف البيانات واستخراج الأرقام المتكررة فقط (مع تجاهل الخانات الفاضية)
-                            mobile_series = combined_df["Mobile"].fillna("").astype(str).str.strip()
-                            duplicate_numbers = mobile_series[mobile_series.duplicated(keep=False) & (mobile_series != "")]
-                            duplicate_values = set(duplicate_numbers.unique())
-                            
-                            duplicate_details = []
-                            # تحديد لون التنبيه للتكرار (برتقالي فاتح هادي مميز)
-                            dup_fill = PatternFill(start_color="FFE5CC", end_color="FFE5CC", fill_type="solid")
-
-                            for row in range(2, len(combined_df) + 2):
-                                cell = worksheet.cell(row=row, column=mobile_col_idx)
-                                cell_val = str(cell.value).strip() if cell.value is not None else ""
-                                
-                                # لو الرقم موجود في قائمة التكرار
-                                if cell_val in duplicate_values:
-                                    cell.fill = dup_fill
-                                    duplicate_details.append(f"- رقم **{cell_val}** ➜ الصف رقم **{row}**")
-
-                            # إظهار التنبيه في الواجهة قبل رسايل التحذير الأخرى
-                            if duplicate_details:
-                                dup_message = "\n".join(duplicate_details)
-                                st.warning(f"⚠️ **تنبيه بوجود تكرار:** تم العثور على أرقام هواتف مكررة وتلوينها بالبرتقالي في الأماكن التالية:\n\n{dup_message}")
-                        # ────────────────────────────────────────────────
-
-
-
-
-                        
-
-                        
-                        
-
-
-                        if "Alico Name" in combined_df.columns:
-
-                            alico_col_index = combined_df.columns.get_loc("Alico Name") + 1
-
-                            max_col = worksheet.max_column
-
-                            if max_col > alico_col_index:
-
-                                worksheet.delete_cols(alico_col_index + 1, max_col - alico_col_index)
-
-                                from openpyxl.styles import PatternFill
-
-
-                        red_fill = PatternFill(
-                           start_color="EF9A9A",
-                           end_color="EF9A9A",
-                           fill_type="solid"
-                        )
-
-
-
-                        name_col_index = combined_df.columns.get_loc("Card Holder Name") + 1
-
-
-                        for row in range(2, len(combined_df) + 2):
-
-                            cell = worksheet.cell(row=row, column=name_col_index)
-
-                            cell.value = str(cell.value).rstrip().upper()
-
-                            if len(str(cell.value).strip()) >= 23:
-
-                                cell.fill = red_fill
+                        if "Card Holder Name" in df_out.columns:
+                            col_idx = df_out.columns.get_loc("Card Holder Name")
+                            for i, val in enumerate(df_out["Card Holder Name"]):
+                                if len(str(val).strip()) >= 23:
+                                    worksheet.write(i+1, col_idx, val, red_name_format)
                     
                     st.download_button(
                         label="📥 اضغط هنا لتحميل الملف النهائي",
