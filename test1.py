@@ -543,12 +543,18 @@ def main():
                         dup_message = "\\n".join(duplicate_details)
                         st.warning(f"⚠️ **تنبيه بوجود تكرار:** تم العثور على أرقام هواتف مكررة وتلوينها بالبرتقالي في الأماكن التالية:\\n\\n{dup_message}")
 
-                    # 4. Alico Name - Delete columns after
+                    # 4. تنضيف شامل - مسح كل حاجة بعد عمود Alico Name
                     if "Alico Name" in df_out.columns:
                         alico_col_index = df_out.columns.get_loc("Alico Name")
-                        cols_to_drop = df_out.columns[alico_col_index + 1:]
-                        if len(cols_to_drop) > 0:
-                            df_out = df_out.drop(columns=cols_to_drop)
+                        # قطع الداتافريم بـ iloc عشان ميبقاش فيه أي عمود بعد Alico Name حتى لو مش ظاهر
+                        df_out = df_out.iloc[:, :alico_col_index + 1]
+
+                    # مسح كل قيم NaN وnan وإبدالها بفراغ
+                    df_out = df_out.fillna("").replace("nan", "").replace("NaN", "")
+
+                    # حذف الصفوف اللي كلها فاضية بالكامل
+                    df_out = df_out[~(df_out.astype(str).apply(lambda x: x.str.strip() == "").all(axis=1))]
+                    df_out = df_out.reset_index(drop=True)
 
                     # 5. Card Holder Name formatting
                     if "Card Holder Name" in df_out.columns:
