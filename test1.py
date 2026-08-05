@@ -326,8 +326,9 @@ def load_excel_template(template_name):
         return None
 
 def process_single_file(file, mapping, final_cols, defaults):
-    """معالجة ملف إكسل واحد بكفاءة عالية"""
+    """معالجة ملف إكسل واحد بكفاءة عالية - يرجع البيانات + معلومات كل شيت"""
     processed_sheets = []
+    sheet_info_list = []  # قائمة بمعلومات كل شيت (اسم الشيت، عدد الكروت)
     try:
         # استخدام pd.ExcelFile كمدير سياق للتعامل الأفضل مع الذاكرة
         with pd.ExcelFile(file) as xl:
@@ -349,6 +350,11 @@ def process_single_file(file, mapping, final_cols, defaults):
 
                 # التحقق من وجود بيانات بعد الفلترة
                 if df.empty:
+                    sheet_info_list.append({
+                        "file_name": file.name,
+                        "sheet_name": sheet_name,
+                        "card_count": 0
+                    })
                     continue
 
                 # اختيار الأعمدة الموجودة فقط
@@ -371,10 +377,17 @@ def process_single_file(file, mapping, final_cols, defaults):
 
                     processed_sheets.append(df_subset)
                     
-        return processed_sheets
+                    # تسجيل معلومات الشيت
+                    sheet_info_list.append({
+                        "file_name": file.name,
+                        "sheet_name": sheet_name,
+                        "card_count": len(df_subset)
+                    })
+                    
+        return processed_sheets, sheet_info_list
     except Exception as e:
         st.warning(f"⚠️ مشكلة في الملف {file.name}: {e}")
-        return []
+        return [], []
 
 # ────────────────────────────────────────────────
 #               واجهة المستخدم الرئيسية
@@ -456,6 +469,7 @@ def main():
         if (st.session_state.get('last_fingerprint') != current_files_fingerprint):
             
             all_dfs = []
+            all_sheet_info = []  # تجميع معلومات كل الشيتات
             start_time = time.time()
             
             # إظهار شريط التقدم أثناء المعالجة التلقائية
@@ -466,8 +480,9 @@ def main():
                 
                 for i, file in enumerate(uploaded_files):
                     file.seek(0)  # إعادة المؤشر لبداية الملف
-                    sheets_data = process_single_file(file, COLUMN_MAPPING, FINAL_COLUMNS, DEFAULT_VALS)
+                    sheets_data, sheet_info = process_single_file(file, COLUMN_MAPPING, FINAL_COLUMNS, DEFAULT_VALS)
                     all_dfs.extend(sheets_data)
+                    all_sheet_info.extend(sheet_info)
                     progress_bar.progress((i + 1) / len(uploaded_files))
                 
                 end_time = time.time()
@@ -477,9 +492,11 @@ def main():
                 st.session_state['processed_data'] = pd.concat(all_dfs, ignore_index=True)
                 st.session_state['process_time'] = end_time - start_time
                 st.session_state['last_fingerprint'] = current_files_fingerprint
+                st.session_state['sheet_info'] = all_sheet_info  # حفظ معلومات الشيتات
                 st.rerun() # إعادة تشغيل سريعة لتنظيف واجهة الـ progress bar بعد الانتهاء
             else:
                 st.session_state['processed_data'] = None
+                st.session_state['sheet_info'] = []
                 st.warning("⚠️ لم يتم العثور على بيانات مطابقة للشروط.")
 
         # 3. عرض النتائج من الذاكرة (هنا السرعة القصوى في المعاينة)
@@ -492,6 +509,56 @@ def main():
             m_col1.metric("إجمالي الملفات", len(uploaded_files))
             m_col2.metric("إجمالي السجلات", len(combined_df))
             m_col3.metric("وقت التنفيذ", f"{st.session_state['process_time']:.2f} ثانية")
+
+            # ────── عرض ملخص الشيتات وعدد الكروت ──────
+            sheet_info = st.session_state.get('sheet_info', [])
+            if sheet_info:
+                st.markdown("### 📊 تفاصيل السحب من كل شيت")
+                
+                # تجميع حسب اسم الملف
+                files_dict = {}
+                for info in sheet_info:
+                    fname = info['file_name']
+                    if fname not in files_dict:
+                        files_dict[fname] = []
+                    files_dict[fname].append(info)
+                
+                for file_name, sheets in files_dict.items():
+                    # عنوان الملف
+                    st.markdown(f"""
+                        <div style="
+                            background: rgba(167, 139, 250, 0.1);
+                            border: 1px solid rgba(167, 139, 250, 0.3);
+                            border-radius: 12px;
+                            padding: 1rem 1.5rem;
+                            margin-bottom: 0.75rem;
+                        ">
+                            <p style="color: #a78bfa; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.5rem;">📁 {file_name}</p>
+                    """, unsafe_allow_html=True)
+                    
+                    # عرض الشيتات داخل هذا الملف
+                    cols_per_row = min(len(sheets), 4)
+                    sheet_cols = st.columns(cols_per_row)
+                    for idx, s_info in enumerate(sheets):
+                        col_idx = idx % cols_per_row
+                        with sheet_cols[col_idx]:
+                            card_count = s_info['card_count']
+                            color = "#4ade80" if card_count > 0 else "#f87171"
+                            st.markdown(f"""
+                                <div style="
+                                    background: rgba(15, 23, 42, 0.6);
+                                    border: 1px solid {color}40;
+                                    border-radius: 10px;
+                                    padding: 0.75rem 1rem;
+                                    text-align: center;
+                                    margin-bottom: 0.5rem;
+                                ">
+                                    <p style="color: #e2e8f0; font-size: 0.9rem; margin: 0;">📄 {s_info['sheet_name']}</p>
+                                    <p style="color: {color}; font-size: 1.5rem; font-weight: 800; margin: 0.25rem 0 0 0;">{card_count} <span style="font-size: 0.8rem; font-weight: 400;">كارت</span></p>
+                                </div>
+                            """, unsafe_allow_html=True)
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
 
             # المعاينة ستفتح فوراً لأنها لا تعيد معالجة أي شيء
             with st.expander("👁️ معاينة البيانات المدمجة (أول 100 سجل)"):
