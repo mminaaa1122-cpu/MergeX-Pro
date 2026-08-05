@@ -510,55 +510,125 @@ def main():
             m_col2.metric("إجمالي السجلات", len(combined_df))
             m_col3.metric("وقت التنفيذ", f"{st.session_state['process_time']:.2f} ثانية")
 
-            # ────── عرض ملخص الشيتات وعدد الكروت ──────
+            # ────── عرض ملخص الشيتات وعدد الكروت (قابل للطي) ──────
             sheet_info = st.session_state.get('sheet_info', [])
             if sheet_info:
-                st.markdown("### 📊 تفاصيل السحب من كل شيت")
-                
-                # تجميع حسب اسم الملف
-                files_dict = {}
-                for info in sheet_info:
-                    fname = info['file_name']
-                    if fname not in files_dict:
-                        files_dict[fname] = []
-                    files_dict[fname].append(info)
-                
-                for file_name, sheets in files_dict.items():
-                    # عنوان الملف
-                    st.markdown(f"""
-                        <div style="
-                            background: rgba(167, 139, 250, 0.1);
-                            border: 1px solid rgba(167, 139, 250, 0.3);
-                            border-radius: 12px;
-                            padding: 1rem 1.5rem;
-                            margin-bottom: 0.75rem;
-                        ">
-                            <p style="color: #a78bfa; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.5rem;">📁 {file_name}</p>
-                    """, unsafe_allow_html=True)
+                # إضافة أنيميشن CSS للكروت
+                st.markdown("""
+                    <style>
+                    @keyframes greenGlow {
+                        0% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.3), 0 0 16px rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.5); }
+                        50% { box-shadow: 0 0 18px rgba(34, 197, 94, 0.6), 0 0 35px rgba(34, 197, 94, 0.25); border-color: rgba(34, 197, 94, 0.9); }
+                        100% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.3), 0 0 16px rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.5); }
+                    }
+                    @keyframes redPulse {
+                        0% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.3); }
+                        50% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); border-color: rgba(239, 68, 68, 0.6); }
+                        100% { box-shadow: 0 0 5px rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.3); }
+                    }
+                    @keyframes fadeSlideIn {
+                        0% { opacity: 0; transform: translateY(10px); }
+                        100% { opacity: 1; transform: translateY(0); }
+                    }
+                    .sheet-card-green {
+                        background: linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(16, 185, 129, 0.06)) !important;
+                        border: 2px solid rgba(34, 197, 94, 0.5) !important;
+                        border-radius: 12px !important;
+                        padding: 0.85rem 1rem !important;
+                        text-align: center !important;
+                        margin-bottom: 0.5rem !important;
+                        animation: greenGlow 2.5s ease-in-out infinite, fadeSlideIn 0.5s ease-out !important;
+                        transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+                    }
+                    .sheet-card-green:hover {
+                        transform: scale(1.05) !important;
+                        box-shadow: 0 0 25px rgba(34, 197, 94, 0.5), 0 0 50px rgba(34, 197, 94, 0.2) !important;
+                    }
+                    .sheet-card-red {
+                        background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(220, 38, 38, 0.04)) !important;
+                        border: 2px solid rgba(239, 68, 68, 0.3) !important;
+                        border-radius: 12px !important;
+                        padding: 0.85rem 1rem !important;
+                        text-align: center !important;
+                        margin-bottom: 0.5rem !important;
+                        animation: redPulse 3s ease-in-out infinite, fadeSlideIn 0.5s ease-out !important;
+                        transition: transform 0.3s ease !important;
+                    }
+                    .sheet-card-red:hover {
+                        transform: scale(1.03) !important;
+                    }
+                    .green-count {
+                        color: #22c55e !important;
+                        font-size: 1.7rem !important;
+                        font-weight: 900 !important;
+                        margin: 0.3rem 0 0 0 !important;
+                        text-shadow: 0 0 12px rgba(34, 197, 94, 0.5) !important;
+                    }
+                    .red-count {
+                        color: #ef4444 !important;
+                        font-size: 1.5rem !important;
+                        font-weight: 800 !important;
+                        margin: 0.25rem 0 0 0 !important;
+                        text-shadow: 0 0 8px rgba(239, 68, 68, 0.3) !important;
+                    }
+                    .file-header-box {
+                        background: rgba(167, 139, 250, 0.1) !important;
+                        border: 1px solid rgba(167, 139, 250, 0.3) !important;
+                        border-radius: 12px !important;
+                        padding: 1rem 1.5rem !important;
+                        margin-bottom: 0.75rem !important;
+                        animation: fadeSlideIn 0.4s ease-out !important;
+                    }
+                    </style>
+                """, unsafe_allow_html=True)
+
+                # حساب إجمالي الشيتات والكروت للعرض في العنوان
+                total_sheets = len(sheet_info)
+                total_cards_from_sheets = sum(s['card_count'] for s in sheet_info)
+                active_sheets = sum(1 for s in sheet_info if s['card_count'] > 0)
+
+                with st.expander(f"📊 تفاصيل السحب من كل شيت  —  {active_sheets} شيت نشط من {total_sheets} | إجمالي {total_cards_from_sheets} كارت", expanded=False):
+                    # تجميع حسب اسم الملف
+                    files_dict = {}
+                    for info in sheet_info:
+                        fname = info['file_name']
+                        if fname not in files_dict:
+                            files_dict[fname] = []
+                        files_dict[fname].append(info)
                     
-                    # عرض الشيتات داخل هذا الملف
-                    cols_per_row = min(len(sheets), 4)
-                    sheet_cols = st.columns(cols_per_row)
-                    for idx, s_info in enumerate(sheets):
-                        col_idx = idx % cols_per_row
-                        with sheet_cols[col_idx]:
-                            card_count = s_info['card_count']
-                            color = "#4ade80" if card_count > 0 else "#f87171"
-                            st.markdown(f"""
-                                <div style="
-                                    background: rgba(15, 23, 42, 0.6);
-                                    border: 1px solid {color}40;
-                                    border-radius: 10px;
-                                    padding: 0.75rem 1rem;
-                                    text-align: center;
-                                    margin-bottom: 0.5rem;
-                                ">
-                                    <p style="color: #e2e8f0; font-size: 0.9rem; margin: 0;">📄 {s_info['sheet_name']}</p>
-                                    <p style="color: {color}; font-size: 1.5rem; font-weight: 800; margin: 0.25rem 0 0 0;">{card_count} <span style="font-size: 0.8rem; font-weight: 400;">كارت</span></p>
-                                </div>
-                            """, unsafe_allow_html=True)
-                    
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    for file_name, sheets in files_dict.items():
+                        file_total = sum(s['card_count'] for s in sheets)
+                        # عنوان الملف
+                        st.markdown(f"""
+                            <div class="file-header-box">
+                                <p style="color: #a78bfa; font-weight: 700; font-size: 1.1rem; margin: 0;">
+                                    📁 {file_name} 
+                                    <span style="color: #94a3b8; font-size: 0.85rem; font-weight: 400; margin-right: 10px;">({file_total} كارت إجمالي)</span>
+                                </p>
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # عرض الشيتات داخل هذا الملف
+                        cols_per_row = min(len(sheets), 4)
+                        sheet_cols = st.columns(cols_per_row)
+                        for idx, s_info in enumerate(sheets):
+                            col_idx = idx % cols_per_row
+                            with sheet_cols[col_idx]:
+                                card_count = s_info['card_count']
+                                if card_count > 0:
+                                    st.markdown(f"""
+                                        <div class="sheet-card-green">
+                                            <p style="color: #d1fae5; font-size: 0.9rem; margin: 0;">📄 {s_info['sheet_name']}</p>
+                                            <p class="green-count">{card_count} <span style="font-size: 0.85rem; font-weight: 400;">كارت ✓</span></p>
+                                        </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"""
+                                        <div class="sheet-card-red">
+                                            <p style="color: #fecaca; font-size: 0.9rem; margin: 0;">📄 {s_info['sheet_name']}</p>
+                                            <p class="red-count">0 <span style="font-size: 0.8rem; font-weight: 400;">كارت ✗</span></p>
+                                        </div>
+                                    """, unsafe_allow_html=True)
 
             # المعاينة ستفتح فوراً لأنها لا تعيد معالجة أي شيء
             with st.expander("👁️ معاينة البيانات المدمجة (أول 100 سجل)"):
