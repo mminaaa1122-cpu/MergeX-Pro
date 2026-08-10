@@ -397,20 +397,28 @@ VALID_DISTRICTS = ["10T", "6TH", "HGZ", "ALX","HC","TAG","HES","REH","HCK","HCO"
 
 
 def fix_district(value):
-    value = str(value).strip().upper()
+    """إصلاح الديستريكت.
+    Returns: (fixed_value, has_problem, was_auto_fixed)
+    - has_problem=True  → يحمّر الخلية (مش عارف يحدد)
+    - was_auto_fixed=True → تم التصحيح تلقائياً (match وحيد)
+    """
+    original = str(value).strip().upper()
 
-    if value in VALID_DISTRICTS:
-        return value, False
+    if original in VALID_DISTRICTS:
+        return original, False, False
 
-    matches = get_close_matches(value, VALID_DISTRICTS, n=2, cutoff=0.5)
+    matches = get_close_matches(original, VALID_DISTRICTS, n=3, cutoff=0.4)
 
     if not matches:
-        return value, True
-    if len(matches) > 1:
-        if matches[0][:2] == matches[1][:2]:
-            return value, True
+        # مفيش أي تشابه خالص
+        return original, True, False
 
-    return matches[0], False
+    if len(matches) == 1:
+        # match وحيد واضح → نصلحها تلقائياً
+        return matches[0], False, True
+
+    # أكتر من match محتمل → مش عارف يحدد → يحمّرها
+    return original, True, False
 
 def main():
     st.markdown("<h1 style='margin-bottom: 0.5rem;'>MergeX Pro ⚡</h1>", unsafe_allow_html=True)
@@ -644,13 +652,33 @@ def main():
 
                     # 1. District fixing before writing
                     district_problems = []
+                    district_changes = []   # تسجيل التغييرات للرسالة
+                    district_flags   = []   # تسجيل المحمّرات للرسالة
                     if "District" in df_out.columns:
                         new_districts = []
-                        for val in df_out["District"]:
-                            fixed_value, has_problem = fix_district(val)
+                        for row_i, val in enumerate(df_out["District"]):
+                            fixed_value, has_problem, was_auto_fixed = fix_district(val)
                             new_districts.append(fixed_value)
                             district_problems.append(has_problem)
+                            if was_auto_fixed:
+                                district_changes.append(
+                                    f"- الصف **{row_i+2}**: `{str(val).strip().upper()}` ← تم تصحيحها إلى `{fixed_value}`"
+                                )
+                            elif has_problem:
+                                candidates = get_close_matches(str(val).strip().upper(), VALID_DISTRICTS, n=3, cutoff=0.4)
+                                candidates_str = " أو ".join(f"`{c}`" for c in candidates) if candidates else "لا يوجد تطابق"
+                                district_flags.append(
+                                    f"- الصف **{row_i+2}**: `{str(val).strip().upper()}` — محتملة: {candidates_str}"
+                                )
                         df_out["District"] = new_districts
+
+                    # ── رسالة التغييرات ──
+                    if district_changes:
+                        changes_text = "\n".join(district_changes)
+                        st.info(f"✅ **تم التصحيح التلقائي لـ {len(district_changes)} ديستريكت:**\n\n{changes_text}")
+                    if district_flags:
+                        flags_text = "\n".join(district_flags)
+                        st.warning(f"🔴 **{len(district_flags)} ديستريكت غامض (تم تحميره في الملف) — يحتاج مراجعة يدوية:**\n\n{flags_text}")
 
                     # 2. Empty cells & text cleaning
                     empty_details = []
