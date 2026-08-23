@@ -337,7 +337,7 @@ def process_single_file(file, mapping, final_cols, defaults):
                 df = pd.read_excel(xl, sheet_name=sheet_name, dtype=str)
                 
                 # تنظيف أسماء الأعمدة
-                df.columns = df.columns.str.strip()
+                df.columns = df.columns.astype(str).str.strip()
                 df.rename(columns=mapping, inplace=True)
 
                 # 1. فلترة: DONE في Comment (تجاهل حالة الأحرف)
