@@ -278,19 +278,19 @@ USERS = {
         "name": "الأدمن"
     },
     "Selvana": {
-        "password": "Selvana12",
+        "password": "selvana12",
         "role": "user",
-        "name": "Selvana"
+        "name": "selvana"
     },
     "Hoda": {
-        "password": "Hoda21",
+        "password": "hoda21",
         "role": "user",
-        "name": "Hoda"
+        "name": "hoda"
     },
     "Zeina": {
-            "password": "Zeina11",
+            "password": "zeina11",
             "role": "user",
-            "name": "Zeina"
+            "name": "zeina"
         },
 }
 
