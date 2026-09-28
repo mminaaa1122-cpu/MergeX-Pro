@@ -49,13 +49,28 @@ st.markdown("""
     }
     /* العناوين */
     h1, h2, h3, .stTitle {
-        background: linear-gradient(90deg, #a78bfa, #f472b6);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 800 !important;
-        text-align: center;
-        letter-spacing: -0.02em;
-    }
+    background: linear-gradient(90deg, #a78bfa, #f472b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800 !important;
+    text-align: center;
+    letter-spacing: -0.02em;
+}
+
+/* إصلاح ظهور الإيموجيز */
+h1, h2, h3, .stTitle {
+    background-clip: text;
+}
+
+/* إصلاح كل الإيموجيز */
+.emoji, 
+[data-testid="stMarkdownContainer"] {
+    -webkit-text-fill-color: initial !important;
+    background: none !important;
+    color: inherit !important;
+}
+
+
     /* الشريط الجانبي */
     section[data-testid="stSidebar"] {
         background: rgba(15, 23, 42, 0.95) !important;
@@ -452,7 +467,12 @@ def log_event(event_type, success=None, note=""):
 
 
 def show_login_page():
-    st.markdown("<h1 style='text-align:center;'>🔒 MergeX Pro</h1>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style="text-align:center; margin-bottom: 1rem;">
+        <div style="font-size: 3.5rem; line-height: 1;">🔒</div>
+        <h1 style="margin: 0; -webkit-text-fill-color: unset; background: none; color: #a78bfa;">MergeX Pro</h1>
+    </div>
+""", unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#94a3b8;'>تسجيل الدخول مطلوب للوصول</p>", unsafe_allow_html=True)
     st.markdown("---")
 
