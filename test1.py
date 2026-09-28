@@ -277,17 +277,17 @@ USERS = {
         "role": "admin",
         "name": "الأدمن"
     },
-    "Selvana": {
+    "selvana": {
         "password": "selvana12",
         "role": "user",
         "name": "selvana"
     },
-    "Hoda": {
+    "hoda": {
         "password": "hoda21",
         "role": "user",
         "name": "hoda"
     },
-    "Zeina": {
+    "zeina": {
             "password": "zeina11",
             "role": "user",
             "name": "zeina"
