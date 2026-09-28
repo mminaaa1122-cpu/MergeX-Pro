@@ -440,7 +440,7 @@ def ensure_log_file():
         wb = Workbook()
         ws = wb.active
         ws.title = "Logs"
-        headers = ["الوقت", "النوع", "الحالة", "IP", "User-Agent", "ملاحظات"]
+        headers = ["الوقت", "اليوزر", "النوع", "الحالة", "IP", "ملاحظات"]
         ws.append(headers)
         for cell in ws[1]:
             cell.font = Font(bold=True, color="FFFFFF")
@@ -448,17 +448,21 @@ def ensure_log_file():
             cell.alignment = Alignment(horizontal="center")
         wb.save(LOG_FILE)
 
-def log_event(event_type, success=None, note=""):
+def log_event(event_type, success=None, note="", username=""):
     ensure_log_file()
     try:
         egypt_tz = pytz.timezone('Africa/Cairo')
         now = datetime.now(egypt_tz).strftime("%Y-%m-%d %H:%M:%S")
         ip = get_client_ip()
-        ua = get_user_agent()
         status = "نجاح ✅" if success is True else ("فشل ❌" if success is False else "-")
+        
+        # لو مفيش يوزر متبعت، ناخده من الجلسة
+        if not username:
+            username = st.session_state.get("username", "-")
+
         wb = load_workbook(LOG_FILE)
         ws = wb.active
-        ws.append([now, event_type, status, ip, ua, note])
+        ws.append([now, username, event_type, status, ip, note])
         wb.save(LOG_FILE)
     except Exception as e:
         print(f"خطأ في التسجيل: {e}")
@@ -493,12 +497,12 @@ def show_login_page():
                     st.session_state["username"] = username.strip().lower()
                     st.session_state["role"] = user["role"]
                     st.session_state["name"] = user["name"]
-                    log_event("دخول للموقع", success=True, note=f"دخل: {user['name']}")
+                    log_event("دخول للموقع", success=True, note=f"دخل: {user['name']}", username=username.strip().lower())
                     st.success(f"✅ أهلاً {user['name']}")
                     time.sleep(0.6)
                     st.rerun()
                 else:
-                    log_event("محاولة دخول", success=False, note=f"يوزر خاطئ: {username}")
+                    log_event("محاولة دخول", success=False, note=f"يوزر خاطئ: {username}", username=username.strip().lower())
                     st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
 
 
@@ -526,7 +530,7 @@ def main():
 
     with col2:
         if st.button("🚪 تسجيل الخروج", use_container_width=True):
-            log_event("خروج", success=True, note=f"خرج: {st.session_state.get('name')}")
+            log_event("خروج", success=True, note="خرج من الموقع", username=st.session_state.get("username", "-"))
             for key in ["authenticated", "username", "role", "name", "ask_dashboard_password", "dashboard_unlocked"]:
                 if key in st.session_state:
                     del st.session_state[key]
@@ -545,12 +549,12 @@ def main():
                 if pwd == USERS["admin"]["password"]:
                     st.session_state["dashboard_unlocked"] = True
                     st.session_state["ask_dashboard_password"] = False
-                    log_event("دخول لوحة التحكم", success=True, note="فتح لوحة التحكم بنجاح")
+                    log_event("دخول لوحة التحكم", success=True, note="فتح لوحة التحكم", username=st.session_state.get("username", "-"))
                     st.success("✅ تم الدخول")
                     time.sleep(0.5)
                     st.rerun()
                 else:
-                    log_event("محاولة دخول لوحة التحكم", success=False, note="باسورد خاطئ")
+                    log_event("محاولة دخول لوحة التحكم", success=False, note="باسورد خاطئ", username=st.session_state.get("username", "-"))
                     st.error("❌ باسورد خاطئ - تم تسجيل المحاولة")
 
         if st.button("← رجوع"):
@@ -572,11 +576,16 @@ def main():
         if os.path.exists(LOG_FILE):
             try:
                 df_logs = pd.read_excel(LOG_FILE)
-                st.dataframe(df_logs.tail(50), use_container_width=True, height=500)
+                show_cols = ["الوقت", "اليوزر", "النوع", "الحالة", "IP", "ملاحظات"]
+                existing = [c for c in show_cols if c in df_logs.columns]
+                st.dataframe(df_logs[existing].tail(40), use_container_width=True, height=450)
                 total = len(df_logs)
                 success = len(df_logs[df_logs["الحالة"].astype(str).str.contains("نجاح", na=False)])
                 failed = len(df_logs[df_logs["الحالة"].astype(str).str.contains("فشل", na=False)])
-                st.caption(f"إجمالي: {total} | نجاح: {success} | فشل: {failed}")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("إجمالي", total)
+                c2.metric("نجاح", success)
+                c3.metric("فشل", failed)
             except Exception as e:
                 st.error(f"خطأ: {e}")
         else:
