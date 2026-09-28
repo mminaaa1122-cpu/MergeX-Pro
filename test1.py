@@ -275,20 +275,25 @@ TEMPLATES = {
 USERS = {
     # الأدمن (أنت فقط)
     "admin": {
-        "password": "YourStrongAdminPass123",   # ← غيّر فوراً
+        "password": "admin12345678911",   # ← غيّر فوراً
         "role": "admin",
         "name": "الأدمن"
     },
-    "ahmed": {
-        "password": "ahmed123",
+    "Selvana": {
+        "password": "Selvana12",
         "role": "user",
-        "name": "أحمد"
+        "name": "Selvana"
     },
-    "sara": {
-        "password": "sara456",
+    "Hoda": {
+        "password": "Hoda21",
         "role": "user",
-        "name": "سارة"
+        "name": "Hoda"
     },
+    "Zeina": {
+            "password": "Zeina11",
+            "role": "user",
+            "name": "Zeina"
+        },
 }
 
 LOG_FILE = "login_logs.xlsx"
