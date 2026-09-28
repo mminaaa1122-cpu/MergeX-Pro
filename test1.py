@@ -592,68 +592,6 @@ def main():
 
 
 
-        # ─── شريط علوي: لوحة التحكم + تسجيل الخروج (اختياري) ───
-    col_top1, col_top2 = st.columns([1, 1])
-
-    with col_top1:
-        if st.button("📊 لوحة التحكم", use_container_width=True, type="primary"):
-            st.session_state["ask_dashboard_password"] = True
-            st.rerun()
-
-    with col_top2:
-        st.write("")  # مسافة فاضية أو تقدر تحط حاجة تانية
-
-    st.markdown("---")
-
-    # ─── طلب باسورد لوحة التحكم ───
-    if st.session_state.get("ask_dashboard_password"):
-        st.subheader("🔐 دخول لوحة التحكم")
-        with st.form("dashboard_pass_form"):
-            pwd = st.text_input("أدخل باسورد الأدمن", type="password")
-            submitted = st.form_submit_button("دخول")
-
-            if submitted:
-                if pwd == USERS["admin"]["password"]:
-                    st.session_state["dashboard_unlocked"] = True
-                    st.session_state["ask_dashboard_password"] = False
-                    log_event("دخول لوحة التحكم", success=True, note="فتح لوحة التحكم بنجاح")
-                    st.success("✅ تم الدخول")
-                    time.sleep(0.5)
-                    st.rerun()
-                else:
-                    log_event("محاولة دخول لوحة التحكم", success=False, note="باسورد خاطئ")
-                    st.error("❌ باسورد خاطئ - تم تسجيل المحاولة")
-
-        if st.button("← رجوع"):
-            st.session_state["ask_dashboard_password"] = False
-            st.rerun()
-        st.stop()
-
-    # ─── لوحة التحكم بعد الباسورد الصحيح ───
-    if st.session_state.get("dashboard_unlocked"):
-        st.subheader("📊 لوحة المراقبة")
-
-        if st.button("← رجوع للصفحة الرئيسية"):
-            st.session_state["dashboard_unlocked"] = False
-            st.rerun()
-
-        if st.button("🔄 تحديث السجلات"):
-            st.rerun()
-
-        if os.path.exists(LOG_FILE):
-            try:
-                df_logs = pd.read_excel(LOG_FILE)
-                st.dataframe(df_logs.tail(50), use_container_width=True, height=500)
-                total = len(df_logs)
-                success = len(df_logs[df_logs["الحالة"].astype(str).str.contains("نجاح", na=False)])
-                failed = len(df_logs[df_logs["الحالة"].astype(str).str.contains("فشل", na=False)])
-                st.caption(f"إجمالي: {total} | نجاح: {success} | فشل: {failed}")
-            except Exception as e:
-                st.error(f"خطأ: {e}")
-        else:
-            st.info("لا توجد سجلات بعد")
-        st.stop()
-
 
 
     # تقسيم الواجهة إلى قسمين
