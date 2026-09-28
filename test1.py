@@ -5,30 +5,30 @@ from io import BytesIO
 import time
 import pytz
 from datetime import datetime
-
 from difflib import get_close_matches
 from openpyxl.styles import PatternFill
 
+from streamlit import runtime
+from streamlit.runtime.scriptrunner import get_script_run_ctx
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill
+import os
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
 # ────────────────────────────────────────────────
-
 st.set_page_config(
     page_title="MergeX • دمج احترافي لملفات إكسل",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
 # إضافة خطوط Google Fonts وتنسيقات CSS المتقدمة
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap');
-
     * {
         font-family: 'Tajawal', sans-serif;
     }
-
     /* الخلفية العامة */
     [data-testid="stAppViewContainer"] {
         background: radial-gradient(circle at top right, #1e1b4b, #0f172a) !important;
@@ -37,7 +37,6 @@ st.markdown("""
     [data-testid="stHeader"] {
         background: transparent !important;
     }
-
     /* الحاوية الرئيسية (Glassmorphism) */
     .block-container {
         background: rgba(30, 41, 59, 0.7) !important;
@@ -48,7 +47,6 @@ st.markdown("""
         margin-top: 2rem;
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     }
-
     /* العناوين */
     h1, h2, h3, .stTitle {
         background: linear-gradient(90deg, #a78bfa, #f472b6);
@@ -58,13 +56,11 @@ st.markdown("""
         text-align: center;
         letter-spacing: -0.02em;
     }
-
     /* الشريط الجانبي */
     section[data-testid="stSidebar"] {
         background: rgba(15, 23, 42, 0.95) !important;
         border-right: 1px solid rgba(255, 255, 255, 0.05);
     }
-
     /* عناصر التحكم */
     .stSelectbox label, .stFileUploader label {
         color: #e2e8f0 !important;
@@ -72,7 +68,6 @@ st.markdown("""
         font-weight: 500 !important;
         margin-bottom: 10px !important;
     }
-
     /* منطقة رفع الملفات */
     [data-testid="stFileUploadDropzone"] {
         background: rgba(30, 41, 59, 0.5) !important;
@@ -80,12 +75,10 @@ st.markdown("""
         border-radius: 20px !important;
         transition: all 0.3s ease;
     }
-
     [data-testid="stFileUploadDropzone"]:hover {
         border-color: #a78bfa !important;
         background: rgba(167, 139, 250, 0.05) !important;
     }
-
     /* الأزرار */
     .stButton > button, .stDownloadButton > button {
         width: 100%;
@@ -99,13 +92,11 @@ st.markdown("""
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
     }
-
     .stButton > button:hover, .stDownloadButton > button:hover {
         transform: translateY(-2px) scale(1.02);
         box-shadow: 0 20px 25px -5px rgba(124, 58, 237, 0.3) !important;
         background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%) !important;
     }
-
     /* حالة النجاح والتنبيهات */
     .stAlert {
         background: rgba(30, 41, 59, 0.8) !important;
@@ -113,19 +104,16 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         border-radius: 15px !important;
     }
-
     /* الجداول */
     [data-testid="stDataFrame"] {
         background: rgba(15, 23, 42, 0.5) !important;
         border-radius: 12px;
         overflow: hidden;
     }
-
     /* تخصيص الـ Progress Bar */
     .stProgress > div > div > div > div {
         background-color: #a78bfa !important;
     }
-
     /* منع الـ Scrollbar من التشوه */
     ::-webkit-scrollbar {
         width: 8px;
@@ -140,39 +128,32 @@ st.markdown("""
     ::-webkit-scrollbar-thumb:hover {
         background: #475569;
     }
-
     p, .stText, [data-testid="stText"], [data-testid="stMarkdownContainer"] p {
         color: #e2e8f0 !important;
     }
-
     /* إصلاح عناوين الإحصائيات (مثل: إجمالي الملفات، إجمالي السجلات) */
     [data-testid="stMetricLabel"] p {
         color: #a78bfa !important; /* لون بنفسجي فاتح ليتماشى مع تصميمك */
         font-weight: 600 !important;
         font-size: 1.1rem !important;
     }
-
     /* إصلاح أرقام الإحصائيات نفسها (مثل: 2, 25, 0.45 ثانية) */
     [data-testid="stMetricValue"] {
         color: #ffffff !important; /* لون أبيض ساطع للرقم */
         font-weight: 800 !important;
     }
-
     /* تحسين رؤية قائمة الملفات المرفوعة */
     [data-testid="stFileUploaderFileName"] {
         color: #ffffff !important; /* اللون الأبيض لاسم الملف */
         font-weight: 500 !important;
     }
-
     [data-testid="stFileUploaderFileData"] {
         color: #cbd5e1 !important; /* لون رمادي فاتح جداً لتفاصيل المساحة (KB) */
     }
-
     /* تفتيح أيقونة الحذف (علامة X) */
     [data-testid="stFileUploaderDeleteBtn"] svg {
         fill: #ffffff !important;
     }
-
     /* 1. تفتيح أرقام الإحصائيات وعناوينها */
     [data-testid="stMetricLabel"] p {
         color: #a78bfa !important;
@@ -181,55 +162,40 @@ st.markdown("""
     [data-testid="stMetricValue"] {
         color: #ffffff !important;
     }
-
    
-
     /* 3. توضيح أسماء الملفات المرفوعة */
     [data-testid="stFileUploaderFileName"] {
         color: #ffffff !important;
     }
-
     /* إخفاء الشريط العلوي بالكامل تماماً */
     [data-testid="stHeader"] {
         display: none !important;
     }
-
     /* إخفاء القائمة الجانبية تماماً "الهمبرجر منيو" */
     #MainMenu {
         display: none !important;
     }
-
     /* إخفاء أي تذييل للصفحة */
     footer {
         display: none !important;
     }
-
     /* إخفاء زرار الـ Deploy */
     .stDeployButton {
         display:none !important;
     }
-
     
 .viewerBadge_container__1QSob {
     display: none !important;
 }
-
-
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
 .stDeployButton {display:none !important;}
-
-
 [data-testid="stStatusWidget"] {
     visibility: hidden;
 }
-
-
-
 /* إخفاء شريط التنبيهات والحاشية الوردية تماماً */
 /* --- الحل النهائي والشامل لإخفاء كل الزوائد --- */
-
     /* 1. إخفاء أيقونة GitHub وشريط الحالة (الجزء الذي سألت عنه) */
     [data-testid="stStatusWidget"],
     div[class*="stStatusWidget"],
@@ -241,33 +207,27 @@ footer {visibility: hidden;}
         height: 0 !important;
         width: 0 !important;
     }
-
     /* 2. إخفاء الرأس (Header) بالكامل */
     header, [data-testid="stHeader"] {
         display: none !important;
     }
-
     /* 3. إخفاء زر Deploy */
     .stDeployButton, [data-testid="stAppDeployButton"] {
         display: none !important;
     }
-
     /* 4. إخفاء المنيو (القائمة الجانبية) والتذييل */
     #MainMenu, footer {
         display: none !important;
     }
-
     /* 5. تنظيف أي مساحات فارغة قد تظهر في الأعلى بعد الإخفاء */
     .block-container {
         padding-top: 2rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
-
 # ────────────────────────────────────────────────
 #               ثوابت البيانات والقوالب
 # ────────────────────────────────────────────────
-
 TEMPLATES = {
     "كارت اديب (ADIB)": {
         "file": "قالب.xlsx",
@@ -292,13 +252,40 @@ TEMPLATES = {
     }
 }
 
+
+
+# ────────────────────────────────────────────────
+#               إعدادات المستخدمين ولوحة التحكم
+# ────────────────────────────────────────────────
+USERS = {
+    # الأدمن (أنت فقط)
+    "admin": {
+        "password": "YourStrongAdminPass123",   # ← غيّر فوراً
+        "role": "admin",
+        "name": "الأدمن"
+    },
+    "ahmed": {
+        "password": "ahmed123",
+        "role": "user",
+        "name": "أحمد"
+    },
+    "sara": {
+        "password": "sara456",
+        "role": "user",
+        "name": "سارة"
+    },
+}
+
+LOG_FILE = "login_logs.xlsx"
+
+
+
 FINAL_COLUMNS = [
     "Card Holder Name", "Address", "Mobile", "Home Phone", "Office Phone1", "Office Phone2",
     "Fax Number", "E-Mail", "Birth Day", "Delivery Date", "Delivery Time", "Agent",
     "Delivery Comments", "GP Code", "Parent Code", "Call Date", "District", "Gender",
     "Product", "Bonus Months", "Confirmation Agent", "ID Number", "Alico Name"
 ]
-
 COLUMN_MAPPING = {
     "Customer Name": "Card Holder Name", "Customer Name ": "Card Holder Name",
     "customer name": "Card Holder Name", " Customer Name": "Card Holder Name",
@@ -310,11 +297,9 @@ COLUMN_MAPPING = {
     "Home phone": "Home Phone", "HOME PHONE": "Home Phone", "HomePhone": "Home Phone",
     "Home Tel": "Home Phone", "HOME NUM": "Home Phone",
 }
-
 # ────────────────────────────────────────────────
 #               وظائف المعالجة الذكية
 # ────────────────────────────────────────────────
-
 @st.cache_resource
 def load_excel_template(template_name):
     """تحميل القالب مرة واحدة وتخزينه في الذاكرة لتسريع العمليات"""
@@ -324,7 +309,6 @@ def load_excel_template(template_name):
     except Exception as e:
         st.error(f"❌ خطأ فادح في تحميل القالب: {e}")
         return None
-
 def process_single_file(file, mapping, final_cols, defaults):
     """معالجة ملف إكسل واحد بكفاءة عالية - يرجع البيانات + معلومات كل شيت"""
     processed_sheets = []
@@ -339,7 +323,6 @@ def process_single_file(file, mapping, final_cols, defaults):
                 # تنظيف أسماء الأعمدة
                 df.columns = df.columns.astype(str).str.strip()
                 df.rename(columns=mapping, inplace=True)
-
                 # 1. فلترة: DONE في Comment (تجاهل حالة الأحرف)
                 if "Comment" in df.columns:
                     df = df[df['Comment'].astype(str).str.contains("DONE", case=False, na=False)]
@@ -347,7 +330,6 @@ def process_single_file(file, mapping, final_cols, defaults):
                 # 2. فلترة: استبعاد YES في Comment 2
                 if "Comment 2" in df.columns:
                     df = df[df["Comment 2"].fillna("").astype(str).str.strip().str.upper() != "YES"]
-
                 # التحقق من وجود بيانات بعد الفلترة
                 if df.empty:
                     sheet_info_list.append({
@@ -356,25 +338,20 @@ def process_single_file(file, mapping, final_cols, defaults):
                         "card_count": 0
                     })
                     continue
-
                 # اختيار الأعمدة الموجودة فقط
                 existing_cols = [c for c in final_cols if c in df.columns]
                 
                 if existing_cols:
                     df_subset = df[existing_cols].copy()
-
                     # ملء الأعمدة المفقودة
                     for col in final_cols:
                         if col not in df_subset.columns:
                             df_subset[col] = ""
-
                     # إعادة الترتيب
                     df_subset = df_subset[final_cols]
-
                     # تطبيق القيم الافتراضية
                     for col, val in defaults.items():
                         df_subset[col] = val
-
                     processed_sheets.append(df_subset)
                     
                     # تسجيل معلومات الشيت
@@ -388,14 +365,10 @@ def process_single_file(file, mapping, final_cols, defaults):
     except Exception as e:
         st.warning(f"⚠️ مشكلة في الملف {file.name}: {e}")
         return [], []
-
 # ────────────────────────────────────────────────
 #               واجهة المستخدم الرئيسية
 # ────────────────────────────────────────────────
-
 VALID_DISTRICTS = ["10T", "6TH", "HGZ", "ALX","HC","TAG","HES","REH","HCK","HCO","HMA","MOK","CTY","HMD", "HCS","ABS","DOK","DT","GZ","HEL","MA","MOH","NC","SHB","ZA","15T"]  # عدّلهم حسب شغلك
-
-
 def fix_district(value):
     """إصلاح الديستريكت.
     Returns: (fixed_value, has_problem, was_auto_fixed)
@@ -403,31 +376,263 @@ def fix_district(value):
     - was_auto_fixed=True → تم التصحيح تلقائياً (match وحيد)
     """
     original = str(value).strip().upper()
-
     if original in VALID_DISTRICTS:
         return original, False, False
-
     matches = get_close_matches(original, VALID_DISTRICTS, n=3, cutoff=0.4)
-
     if not matches:
         # مفيش أي تشابه خالص
         return original, True, False
-
     if len(matches) == 1:
         # match وحيد واضح → نصلحها تلقائياً
         return matches[0], False, True
-
     # أكتر من match محتمل → مش عارف يحدد → يحمّرها
     return original, True, False
 
+
+
+def get_client_ip():
+    try:
+        if hasattr(st, "context") and hasattr(st.context, "ip_address"):
+            ip = st.context.ip_address
+            if ip:
+                return ip
+    except Exception:
+        pass
+    try:
+        ctx = get_script_run_ctx()
+        if ctx is None:
+            return "غير معروف"
+        session_info = runtime.get_instance().get_client(ctx.session_id)
+        if session_info is None:
+            return "غير معروف"
+        return session_info.request.remote_ip or "غير معروف"
+    except Exception:
+        return "غير معروف"
+
+def get_user_agent():
+    try:
+        if hasattr(st, "context") and hasattr(st.context, "headers"):
+            return st.context.headers.get("User-Agent", "غير معروف")
+    except Exception:
+        pass
+    return "غير معروف"
+
+def ensure_log_file():
+    if not os.path.exists(LOG_FILE):
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Logs"
+        headers = ["الوقت", "النوع", "الحالة", "IP", "User-Agent", "ملاحظات"]
+        ws.append(headers)
+        for cell in ws[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="4F46E5")
+            cell.alignment = Alignment(horizontal="center")
+        wb.save(LOG_FILE)
+
+def log_event(event_type, success=None, note=""):
+    ensure_log_file()
+    try:
+        egypt_tz = pytz.timezone('Africa/Cairo')
+        now = datetime.now(egypt_tz).strftime("%Y-%m-%d %H:%M:%S")
+        ip = get_client_ip()
+        ua = get_user_agent()
+        status = "نجاح ✅" if success is True else ("فشل ❌" if success is False else "-")
+        wb = load_workbook(LOG_FILE)
+        ws = wb.active
+        ws.append([now, event_type, status, ip, ua, note])
+        wb.save(LOG_FILE)
+    except Exception as e:
+        print(f"خطأ في التسجيل: {e}")
+
+
+
+
+
+
+
+def show_login_page():
+    st.markdown("<h1 style='text-align:center;'>🔒 MergeX Pro</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#94a3b8;'>تسجيل الدخول مطلوب للوصول</p>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        with st.form("login_form"):
+            username = st.text_input("اسم المستخدم")
+            password = st.text_input("كلمة المرور", type="password")
+            submitted = st.form_submit_button("دخول 🚀", use_container_width=True)
+
+            if submitted:
+                user = USERS.get(username.strip().lower())
+                if user and password == user["password"]:
+                    st.session_state["authenticated"] = True
+                    st.session_state["username"] = username.strip().lower()
+                    st.session_state["role"] = user["role"]
+                    st.session_state["name"] = user["name"]
+                    log_event("دخول للموقع", success=True, note=f"دخل: {user['name']}")
+                    st.success(f"✅ أهلاً {user['name']}")
+                    time.sleep(0.6)
+                    st.rerun()
+                else:
+                    log_event("محاولة دخول", success=False, note=f"يوزر خاطئ: {username}")
+                    st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
+
+
+
+
+
 def main():
+    # ─── حماية الدخول للموقع ───
+    if "authenticated" not in st.session_state:
+        st.session_state["authenticated"] = False
+
+    if not st.session_state["authenticated"]:
+        show_login_page()
+        st.stop()
+
+    # ─── شريط علوي بعد الدخول ───
+    st.markdown(f"### 👤 مرحباً **{st.session_state.get('name', '')}**")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("📊 لوحة التحكم", use_container_width=True, type="primary"):
+            st.session_state["ask_dashboard_password"] = True
+            st.rerun()
+
+    with col2:
+        if st.button("🚪 تسجيل الخروج", use_container_width=True):
+            log_event("خروج", success=True, note=f"خرج: {st.session_state.get('name')}")
+            for key in ["authenticated", "username", "role", "name", "ask_dashboard_password", "dashboard_unlocked"]:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
+    st.markdown("---")
+
+    # ─── طلب باسورد لوحة التحكم ───
+    if st.session_state.get("ask_dashboard_password"):
+        st.subheader("🔐 دخول لوحة التحكم")
+        with st.form("dashboard_pass_form"):
+            pwd = st.text_input("أدخل باسورد الأدمن", type="password")
+            submitted = st.form_submit_button("دخول")
+
+            if submitted:
+                if pwd == USERS["admin"]["password"]:
+                    st.session_state["dashboard_unlocked"] = True
+                    st.session_state["ask_dashboard_password"] = False
+                    log_event("دخول لوحة التحكم", success=True, note="فتح لوحة التحكم بنجاح")
+                    st.success("✅ تم الدخول")
+                    time.sleep(0.5)
+                    st.rerun()
+                else:
+                    log_event("محاولة دخول لوحة التحكم", success=False, note="باسورد خاطئ")
+                    st.error("❌ باسورد خاطئ - تم تسجيل المحاولة")
+
+        if st.button("← رجوع"):
+            st.session_state["ask_dashboard_password"] = False
+            st.rerun()
+        st.stop()
+
+    
+    if st.session_state.get("dashboard_unlocked"):
+        st.subheader("📊 لوحة المراقبة")
+
+        if st.button("← رجوع للصفحة الرئيسية"):
+            st.session_state["dashboard_unlocked"] = False
+            st.rerun()
+
+        if st.button("🔄 تحديث السجلات"):
+            st.rerun()
+
+        if os.path.exists(LOG_FILE):
+            try:
+                df_logs = pd.read_excel(LOG_FILE)
+                st.dataframe(df_logs.tail(50), use_container_width=True, height=500)
+                total = len(df_logs)
+                success = len(df_logs[df_logs["الحالة"].astype(str).str.contains("نجاح", na=False)])
+                failed = len(df_logs[df_logs["الحالة"].astype(str).str.contains("فشل", na=False)])
+                st.caption(f"إجمالي: {total} | نجاح: {success} | فشل: {failed}")
+            except Exception as e:
+                st.error(f"خطأ: {e}")
+        else:
+            st.info("لا توجد سجلات بعد")
+        st.stop()
+
+    
     st.markdown("<h1 style='margin-bottom: 0.5rem;'>MergeX Pro ⚡</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 1.1rem;'>النظام الذكي لدمج ومعالجة ملفات الإكسل بسرعة فائقة</p>", unsafe_allow_html=True)
     st.markdown("---")
 
+
+
+        # ─── شريط علوي: لوحة التحكم + تسجيل الخروج (اختياري) ───
+    col_top1, col_top2 = st.columns([1, 1])
+
+    with col_top1:
+        if st.button("📊 لوحة التحكم", use_container_width=True, type="primary"):
+            st.session_state["ask_dashboard_password"] = True
+            st.rerun()
+
+    with col_top2:
+        st.write("")  # مسافة فاضية أو تقدر تحط حاجة تانية
+
+    st.markdown("---")
+
+    # ─── طلب باسورد لوحة التحكم ───
+    if st.session_state.get("ask_dashboard_password"):
+        st.subheader("🔐 دخول لوحة التحكم")
+        with st.form("dashboard_pass_form"):
+            pwd = st.text_input("أدخل باسورد الأدمن", type="password")
+            submitted = st.form_submit_button("دخول")
+
+            if submitted:
+                if pwd == USERS["admin"]["password"]:
+                    st.session_state["dashboard_unlocked"] = True
+                    st.session_state["ask_dashboard_password"] = False
+                    log_event("دخول لوحة التحكم", success=True, note="فتح لوحة التحكم بنجاح")
+                    st.success("✅ تم الدخول")
+                    time.sleep(0.5)
+                    st.rerun()
+                else:
+                    log_event("محاولة دخول لوحة التحكم", success=False, note="باسورد خاطئ")
+                    st.error("❌ باسورد خاطئ - تم تسجيل المحاولة")
+
+        if st.button("← رجوع"):
+            st.session_state["ask_dashboard_password"] = False
+            st.rerun()
+        st.stop()
+
+    # ─── لوحة التحكم بعد الباسورد الصحيح ───
+    if st.session_state.get("dashboard_unlocked"):
+        st.subheader("📊 لوحة المراقبة")
+
+        if st.button("← رجوع للصفحة الرئيسية"):
+            st.session_state["dashboard_unlocked"] = False
+            st.rerun()
+
+        if st.button("🔄 تحديث السجلات"):
+            st.rerun()
+
+        if os.path.exists(LOG_FILE):
+            try:
+                df_logs = pd.read_excel(LOG_FILE)
+                st.dataframe(df_logs.tail(50), use_container_width=True, height=500)
+                total = len(df_logs)
+                success = len(df_logs[df_logs["الحالة"].astype(str).str.contains("نجاح", na=False)])
+                failed = len(df_logs[df_logs["الحالة"].astype(str).str.contains("فشل", na=False)])
+                st.caption(f"إجمالي: {total} | نجاح: {success} | فشل: {failed}")
+            except Exception as e:
+                st.error(f"خطأ: {e}")
+        else:
+            st.info("لا توجد سجلات بعد")
+        st.stop()
+
+
+
     # تقسيم الواجهة إلى قسمين
     col1, col2 = st.columns([1, 2], gap="large")
-
     with col1:
         st.subheader("⚙️ الإعدادات")
         selected_template_key = st.selectbox(
@@ -438,13 +643,10 @@ def main():
         
         template_info = TEMPLATES[selected_template_key]
         TEMPLATE_FILE = template_info["file"]
-
         egypt_timezone = pytz.timezone('Africa/Cairo')
         current_date = datetime.now(egypt_timezone).strftime("%d/%m/%Y")
         DEFAULT_VALS = template_info["defaults"].copy()
-
         DEFAULT_VALS["Call Date"] = current_date
-
         # تحميل القالب (مخزن مؤقتًا)
         wb_template = load_excel_template(TEMPLATE_FILE)
         
@@ -452,7 +654,6 @@ def main():
             st.success(f"✅ القالب محمل وجاهز: {selected_template_key}")
         
         st.info("💡 يتم دمج الصفوف التي تحتوي على 'DONE' في عمود التعليق فقط، وتجاهل الصفوف التي تم معالجتها مسبقاً (YES).")
-
     with col2:
         st.subheader("📂 رفع البيانات")
         uploaded_files = st.file_uploader(
@@ -461,13 +662,11 @@ def main():
             accept_multiple_files=True,
             help="يمكنك اختيار ملف واحد أو عدة ملفات معاً"
         )
-
     # معالجة البيانات عند الرفع
    # معالجة البيانات عند الرفع
     # ────────────────────────────────────────────────
     #             معالجة البيانات تلقائياً
     # ────────────────────────────────────────────────
-
     if uploaded_files:
         # 1. إنشاء "بصمة" للملفات الحالية (الاسم + الحجم) للتأكد من أي تغيير
         current_files_fingerprint = [(f.name, f.size) for f in uploaded_files]
@@ -494,7 +693,6 @@ def main():
                     progress_bar.progress((i + 1) / len(uploaded_files))
                 
                 end_time = time.time()
-
             # حفظ النتيجة والبصمة في الذاكرة
             if all_dfs:
                 st.session_state['processed_data'] = pd.concat(all_dfs, ignore_index=True)
@@ -506,7 +704,6 @@ def main():
                 st.session_state['processed_data'] = None
                 st.session_state['sheet_info'] = []
                 st.warning("⚠️ لم يتم العثور على بيانات مطابقة للشروط.")
-
         # 3. عرض النتائج من الذاكرة (هنا السرعة القصوى في المعاينة)
         if st.session_state.get('processed_data') is not None:
             combined_df = st.session_state['processed_data']
@@ -517,7 +714,6 @@ def main():
             m_col1.metric("إجمالي الملفات", len(uploaded_files))
             m_col2.metric("إجمالي السجلات", len(combined_df))
             m_col3.metric("وقت التنفيذ", f"{st.session_state['process_time']:.2f} ثانية")
-
             # ────── عرض ملخص الشيتات وعدد الكروت (قابل للطي) ──────
             sheet_info = st.session_state.get('sheet_info', [])
             if sheet_info:
@@ -589,12 +785,10 @@ def main():
                     }
                     </style>
                 """, unsafe_allow_html=True)
-
                 # حساب إجمالي الشيتات والكروت للعرض في العنوان
                 total_sheets = len(sheet_info)
                 total_cards_from_sheets = sum(s['card_count'] for s in sheet_info)
                 active_sheets = sum(1 for s in sheet_info if s['card_count'] > 0)
-
                 with st.expander(f"📊 تفاصيل السحب من كل شيت  —  {active_sheets} شيت نشط من {total_sheets} | إجمالي {total_cards_from_sheets} كارت", expanded=False):
                     # تجميع حسب اسم الملف
                     files_dict = {}
@@ -637,11 +831,9 @@ def main():
                                             <p class="red-count">0 <span style="font-size: 0.8rem; font-weight: 400;">كارت ✗</span></p>
                                         </div>
                                     """, unsafe_allow_html=True)
-
             # المعاينة ستفتح فوراً لأنها لا تعيد معالجة أي شيء
             with st.expander("👁️ معاينة البيانات المدمجة (أول 100 سجل)"):
                 st.dataframe(combined_df.head(100), use_container_width=True)
-
             # زر الحفظ والتحميل النهائي
             st.markdown("### 💾 الخطوة النهائية")
             if st.button("🚀 توليد وتجهيز الملف للتحميل", key="generate_file"):
@@ -649,7 +841,6 @@ def main():
                     output = BytesIO()
                     
                     df_out = combined_df.copy()
-
                     # 1. District fixing before writing
                     district_problems = []
                     district_changes = []   # تسجيل التغييرات للرسالة
@@ -671,7 +862,6 @@ def main():
                                     f"- الصف **{row_i+2}**: `{str(val).strip().upper()}` — محتملة: {candidates_str}"
                                 )
                         df_out["District"] = new_districts
-
                     # ── رسالة التغييرات ──
                     if district_changes:
                         changes_text = "\n".join(district_changes)
@@ -679,7 +869,6 @@ def main():
                     if district_flags:
                         flags_text = "\n".join(district_flags)
                         st.warning(f"🔴 **{len(district_flags)} ديستريكت غامض (تم تحميره في الملف) — يحتاج مراجعة يدوية:**\n\n{flags_text}")
-
                     # 2. Empty cells & text cleaning
                     empty_details = []
                     for col_name in ["Gender", "District", "Delivery Time"]:
@@ -689,11 +878,9 @@ def main():
                             for i, val in enumerate(df_out[col_name]):
                                 if val is None or str(val).strip() == "":
                                     empty_details.append(f"- عمود **{col_name}** ➜ الصف رقم **{i+2}**")
-
                     if empty_details:
                         details_message = "\\n".join(empty_details)
                         st.warning(f"⚠️ **تنبيه:** تم العثور على خانات فارغة وتلوينها بالأحمر في الأماكن التالية:\\n\\n{details_message}")
-
                     # 3. Mobile duplicates
                     duplicate_details = []
                     dup_mask = []
@@ -707,55 +894,45 @@ def main():
                     if duplicate_details:
                         dup_message = "\\n".join(duplicate_details)
                         st.warning(f"⚠️ **تنبيه بوجود تكرار:** تم العثور على أرقام هواتف مكررة وتلوينها بالبرتقالي في الأماكن التالية:\\n\\n{dup_message}")
-
                     # 4. تنضيف شامل - مسح كل حاجة بعد عمود Alico Name
                     if "Alico Name" in df_out.columns:
                         alico_col_index = df_out.columns.get_loc("Alico Name")
                         # قطع الداتافريم بـ iloc عشان ميبقاش فيه أي عمود بعد Alico Name حتى لو مش ظاهر
                         df_out = df_out.iloc[:, :alico_col_index + 1]
-
                     # مسح كل قيم NaN وnan وإبدالها بفراغ
                     df_out = df_out.fillna("").replace("nan", "").replace("NaN", "")
-
                     # حذف الصفوف اللي كلها فاضية بالكامل
                     df_out = df_out[~(df_out.astype(str).apply(lambda x: x.str.strip() == "").all(axis=1))]
                     df_out = df_out.reset_index(drop=True)
-
                     # 5. Card Holder Name formatting
                     if "Card Holder Name" in df_out.columns:
                         df_out["Card Holder Name"] = df_out["Card Holder Name"].fillna("").astype(str).str.rstrip().str.upper()
-
                     # Write using xlsxwriter
                     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                         df_out.to_excel(writer, index=False, sheet_name="Merged_Data")
                         workbook = writer.book
                         worksheet = writer.sheets["Merged_Data"]
-
                         # Formats
                         red_format = workbook.add_format({"bg_color": "#FF9999"})
                         dup_format = workbook.add_format({"bg_color": "#FFE5CC"})
                         red_name_format = workbook.add_format({"bg_color": "#EF9A9A"})
-
                         # Apply coloring by overwriting cells
                         if "District" in df_out.columns:
                             col_idx = df_out.columns.get_loc("District")
                             for i, has_prob in enumerate(district_problems):
                                 if has_prob:
                                     worksheet.write(i+1, col_idx, df_out.iloc[i]["District"], red_format)
-
                         for col_name in ["Gender", "District", "Delivery Time"]:
                             if col_name in df_out.columns:
                                 col_idx = df_out.columns.get_loc(col_name)
                                 for i, val in enumerate(df_out[col_name]):
                                     if val is None or str(val).strip() == "":
                                         worksheet.write_blank(i+1, col_idx, "", red_format)
-
                         if "Mobile" in df_out.columns and dup_mask:
                             col_idx = df_out.columns.get_loc("Mobile")
                             for i, is_dup in enumerate(dup_mask):
                                 if is_dup:
                                     worksheet.write(i+1, col_idx, df_out.iloc[i]["Mobile"], dup_format)
-
                         if "Card Holder Name" in df_out.columns:
                             col_idx = df_out.columns.get_loc("Card Holder Name")
                             for i, val in enumerate(df_out["Card Holder Name"]):
@@ -769,13 +946,13 @@ def main():
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                     st.balloons()
-
     # تذييل الصفحة
     st.markdown("""
         <div style='text-align: center; margin-top: 5rem; color: #64748b; font-size: 0.9rem;'>
             MergeX Pro v2.0 • تم التطوير بكل حب لخدمة أعمالكم
         </div>
     """, unsafe_allow_html=True)
-
 if __name__ == "__main__":
     main()
+
+
