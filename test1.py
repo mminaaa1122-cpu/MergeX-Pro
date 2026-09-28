@@ -47,8 +47,7 @@ st.markdown("""
         margin-top: 2rem;
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     }
-    /* العناوين */
-    h1, h2, h3, .stTitle {
+   h1, h2, h3, .stTitle {
     background: linear-gradient(90deg, #a78bfa, #f472b6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -57,17 +56,16 @@ st.markdown("""
     letter-spacing: -0.02em;
 }
 
-/* إصلاح ظهور الإيموجيز */
-h1, h2, h3, .stTitle {
-    background-clip: text;
+/* إصلاح ظهور كل الإيموجيز في الموقع */
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] span,
+[data-testid="stMarkdownContainer"] div {
+    -webkit-text-fill-color: initial !important;
 }
 
-/* إصلاح كل الإيموجيز */
-.emoji, 
-[data-testid="stMarkdownContainer"] {
-    -webkit-text-fill-color: initial !important;
-    background: none !important;
-    color: inherit !important;
+/* نخلي العناوين بس هي اللي تاخد اللون المتدرج */
+h1, h2, h3 {
+    -webkit-text-fill-color: transparent !important;
 }
 
 
