@@ -124,10 +124,11 @@ def create_excel_download(df, sheet_name="Clean_Batch"):
                 )
 
                 for value in sample_values:
+                     safe_value = "" if pd.isna(value) else str(value)
 
-                    max_length = max(
+                     max_length = max(
                         max_length,
-                        len(value)
+                        len(safe_value)
                     )
 
             width = min(
@@ -143,12 +144,17 @@ def create_excel_download(df, sheet_name="Clean_Batch"):
 
         worksheet.freeze_panes(1, 0)
 
+
+
+        
+    if len(df.columns) > 0:
         worksheet.autofilter(
-            0,
-            0,
-            max(len(df), 1),
-            len(df.columns) - 1
-        )
+        0,
+        0,
+        len(df),
+        len(df.columns) - 1
+     )
+
 
     output.seek(0)
 
