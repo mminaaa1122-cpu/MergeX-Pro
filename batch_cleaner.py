@@ -712,7 +712,7 @@ def render_batch_cleaner():
     # Duplicate Result
     # ==================================================
 
-    st.subheader("🟥 Duplicate Records")
+    st.markdown("### 🟥 Duplicate Records")
 
     if duplicate_df.empty:
 
@@ -763,7 +763,7 @@ def render_batch_cleaner():
     # Clean Batch
     # ==================================================
 
-    st.subheader("🟢 Clean Batch")
+    st.markdown("### 🟢 Clean Batch")
 
     st.success(
         f"الملف النظيف يحتوي على "
