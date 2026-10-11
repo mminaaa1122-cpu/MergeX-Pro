@@ -3,37 +3,33 @@ import pandas as pd
 from io import BytesIO
 
 
-BANK_REQUIRED_COLUMNS = [
-    "Serial",
-    "SSNumber",
-    "Customer Name",
-    "Mobile",
-    "HOME NUM",
-    "Address",
-]
+BANK_REQUIRED_COLUMNS = ["Mobile"]
 
-BATCH_SEARCH_COLUMN = "SSNumber"
+BATCH_SEARCH_COLUMN = "Mobile"
 
 
-def normalize_ssnumber(series):
+
+def normalize_mobile(series):
     """
-    تنظيف SSNumber للمقارنة فقط.
-    لا يغير قيمة الملف الأصلي.
+    توحيد شكل أرقام الموبايل للمقارنة فقط.
+    لا يغيّر بيانات الملفات الأصلية.
     """
     return (
         series.fillna("")
         .astype(str)
         .str.strip()
         .str.replace(r"\.0$", "", regex=True)
+        .str.replace(r"[\s\-\(\)]", "", regex=True)
     )
 
 
-def read_ssnumbers_from_excel(uploaded_file):
+
+def read_mobiles_from_excel(uploaded_file):
     """
     قراءة SSNumber من جميع الشيتات الموجودة داخل Batch.
     ترجع Set سريع للبحث.
     """
-    ssnumbers = set()
+    mobiles = set()
 
     try:
         uploaded_file.seek(0)
@@ -57,15 +53,15 @@ def read_ssnumbers_from_excel(uploaded_file):
                 if BATCH_SEARCH_COLUMN not in df.columns:
                     continue
 
-                values = normalize_ssnumber(
+                values = normalize_mobile(
                     df[BATCH_SEARCH_COLUMN]
                 )
 
                 values = values[values != ""]
 
-                ssnumbers.update(values.tolist())
+                mobiles.update(values.tolist())
 
-        return ssnumbers
+        return mobiles
 
     except Exception as e:
         raise Exception(
@@ -235,7 +231,7 @@ def process_batch_cleaner(
     original_columns = bank_df.columns.tolist()
 
     # SSNumber للمقارنة فقط
-    bank_search_key = normalize_ssnumber(
+    bank_search_key = normalize_mobile(
         bank_df[BATCH_SEARCH_COLUMN]
     )
 
@@ -243,9 +239,9 @@ def process_batch_cleaner(
     # 2. قراءة كل Batch
     # ==================================================
 
-    all_existing_ssnumbers = set()
+    all_existing_mobiles = set()
 
-    year_ssnumbers = {}
+    year_mobiles = {}
 
     for year, batch_file in batch_files_by_year.items():
 
@@ -254,14 +250,14 @@ def process_batch_cleaner(
 
         try:
 
-            ssnumbers = read_ssnumbers_from_excel(
+            mobiles = read_mobiles_from_excel(
                 batch_file
             )
 
-            year_ssnumbers[year] = ssnumbers
+            year_mobiles[year] = mobiles
 
-            all_existing_ssnumbers.update(
-                ssnumbers
+            all_existing_mobiles.update(
+                mobiles
             )
 
         except Exception as e:
@@ -275,7 +271,7 @@ def process_batch_cleaner(
     # ==================================================
 
     duplicate_mask = bank_search_key.isin(
-        all_existing_ssnumbers
+        all_existing_mobiles
     )
 
     duplicate_indices = bank_df.index[
@@ -316,7 +312,7 @@ def process_batch_cleaner(
 
     if not duplicate_df.empty:
 
-        duplicate_search_keys = normalize_ssnumber(
+        duplicate_search_keys = normalize_mobile(
             duplicate_df[BATCH_SEARCH_COLUMN]
         )
 
@@ -326,7 +322,7 @@ def process_batch_cleaner(
 
             found_years = []
 
-            for year, year_set in year_ssnumbers.items():
+            for year, year_set in year_mobiles.items():
 
                 if key and key in year_set:
                     found_years.append(year)
@@ -402,8 +398,9 @@ def render_batch_cleaner():
         type=["xlsx", "xls"],
         key="batch_cleaner_bank_file",
         help=(
-            "ملف البنك يجب أن يحتوي على "
-            "Serial و SSNumber وباقي بيانات العميل"
+            "يمكن رفع ملف البنك بأي أعمدة، بشرط وجود "
+    "عمود Mobile لاستخدامه في البحث. "
+    "ستُحفظ باقي الأعمدة الموجودة كما هي."
         )
     )
 
@@ -466,7 +463,7 @@ def render_batch_cleaner():
                 )
 
                 st.caption(
-                    "🔑 Search Key: SSNumber"
+                    "🔑 Search Key: Mobile"
                 )
 
         except Exception as e:
@@ -802,5 +799,5 @@ def render_batch_cleaner():
 
     st.info(
         "🔒 الملفات الأصلية للـ Batches لم يتم تعديلها. "
-        "تم استخدام SSNumber للمقارنة فقط."
+        "تم استخدام Mobile للمقارنة فقط."
     )
