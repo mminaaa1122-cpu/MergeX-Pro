@@ -13,6 +13,7 @@ from streamlit.runtime.scriptrunner import get_script_run_ctx
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 import os
+from batch_cleaner import render_batch_cleaner
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
 # ────────────────────────────────────────────────
@@ -20,7 +21,7 @@ st.set_page_config(
     page_title="MergeX • دمج احترافي لملفات إكسل",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded"   
 )
 # إضافة خطوط Google Fonts وتنسيقات CSS المتقدمة
 st.markdown("""
@@ -236,6 +237,29 @@ footer {visibility: hidden;}
     .block-container {
         padding-top: 2rem !important;
     }
+
+    /* ========== إجبار الـ Sidebar يبقى مفتوح دائماً ========== */
+section[data-testid="stSidebar"] {
+    transform: none !important;
+    visibility: visible !important;
+    width: 280px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
+    margin-left: 0 !important;
+    left: 0 !important;
+    display: block !important;
+}
+
+/* منع الـ collapse */
+button[data-testid="baseButton-headerNoPadding"],
+[data-testid="stSidebarCollapsedControl"] {
+    display: none !important;
+}
+
+/* لو عايز تخفي زرار الـ collapse نفسه */
+[data-testid="stSidebar"] button[kind="header"] {
+    display: none !important;
+}
     </style>
 """, unsafe_allow_html=True)
 # ────────────────────────────────────────────────
@@ -538,6 +562,7 @@ def main():
 
     st.markdown("---")
 
+
     # ─── طلب باسورد لوحة التحكم ───
     if st.session_state.get("ask_dashboard_password"):
         st.subheader("🔐 دخول لوحة التحكم")
@@ -591,6 +616,109 @@ def main():
         else:
             st.info("لا توجد سجلات بعد")
         st.stop()
+            # ────────────────────────────────────────────────
+    #                 Main Navigation
+    # ────────────────────────────────────────────────
+
+    with st.sidebar:
+        st.markdown(
+            """
+            <div style="
+                text-align:center;
+                padding:10px 0 20px 0;
+            ">
+                <div style="
+                    font-size:2rem;
+                    font-weight:800;
+                    color:#a78bfa;
+                ">
+                    ⚡ MergeX Pro
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.markdown("---")
+
+        selected_module = st.radio(
+            "القائمة الرئيسية",
+            [
+                "📊 Merge & Process",
+                "🧹 Batch Cleaner",
+                "🔎 Member Checker",
+                "📋 Reports",
+                "⚙️ Settings"
+            ],
+            key="main_module"
+        )
+
+        st.markdown("---")
+
+        st.caption(
+            f"👤 المستخدم: {st.session_state.get('name', '')}"
+        )
+
+    # ────────────────────────────────────────────────
+    #                 Module Routing
+    # ────────────────────────────────────────────────
+
+    if selected_module == "🧹 Batch Cleaner":
+
+        render_batch_cleaner()
+
+        st.markdown("""
+            <div style='text-align: center; margin-top: 5rem; color: #64748b; font-size: 0.9rem;'>
+                MergeX Pro v2.0 • Batch Cleaner
+            </div>
+        """, unsafe_allow_html=True)
+
+        return
+
+    elif selected_module == "🔎 Member Checker":
+
+        st.markdown("<h1>🔎 Member Checker</h1>", unsafe_allow_html=True)
+
+        st.info(
+            "🚧 Member Checker سيتم ربطه بالسيستم بعد تجهيز SQL Connector."
+        )
+
+        return
+
+    elif selected_module == "📋 Reports":
+
+        st.markdown("<h1>📋 Reports</h1>", unsafe_allow_html=True)
+
+        st.info(
+            "🚧 قسم التقارير سيتم تجهيزه بعد اكتمال الـ Modules الأساسية."
+        )
+
+        return
+
+    elif selected_module == "⚙️ Settings":
+
+        st.markdown("<h1>⚙️ Settings</h1>", unsafe_allow_html=True)
+
+        st.info(
+            "🚧 إعدادات النظام سيتم تجهيزها لاحقًا."
+        )
+
+        return
+
+   
+
+
+
+
+       
+
+
+
+
+
+
+
+
 
     
     st.markdown("<h1 style='margin-bottom: 0.5rem;'>MergeX Pro ⚡</h1>", unsafe_allow_html=True)
