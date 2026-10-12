@@ -1,19 +1,25 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+import os
+from datetime import datetime
+import pytz
+
+# ==================================================
+# إعدادات
+# ==================================================
+MASTER_FILE = "master_database.parquet"
+LOG_FILE = "master_update_log.csv"
+SEARCH_COLUMN = "Mobile"
+
+# ←←← حط هنا اليوزرين اللي ليهم صلاحية إدارة البيانات
+MASTER_ALLOWED_USERS = ["admin", "salma"]   # غيّر الاسم الثاني زي ما تحب
 
 
-BANK_REQUIRED_COLUMNS = ["Mobile"]
-
-BATCH_SEARCH_COLUMN = "Mobile"
-
-
-
-def normalize_mobile(series):
-    """
-    توحيد شكل أرقام الموبايل للمقارنة فقط.
-    لا يغيّر بيانات الملفات الأصلية.
-    """
+# ==================================================
+# دوال مساعدة
+# ==================================================
+def normalize_mobile(series: pd.Series) -> pd.Series:
     return (
         series.fillna("")
         .astype(str)
@@ -23,69 +29,14 @@ def normalize_mobile(series):
     )
 
 
-
-def read_mobiles_from_excel(uploaded_file):
-    """
-    قراءة SSNumber من جميع الشيتات الموجودة داخل Batch.
-    ترجع Set سريع للبحث.
-    """
-    mobiles = set()
-
-    try:
-        uploaded_file.seek(0)
-
-        with pd.ExcelFile(uploaded_file) as excel_file:
-
-            for sheet_name in excel_file.sheet_names:
-
-                df = pd.read_excel(
-                    excel_file,
-                    sheet_name=sheet_name,
-                    dtype=str
-                )
-
-                df.columns = (
-                    df.columns
-                    .astype(str)
-                    .str.strip()
-                )
-
-                if BATCH_SEARCH_COLUMN not in df.columns:
-                    continue
-
-                values = normalize_mobile(
-                    df[BATCH_SEARCH_COLUMN]
-                )
-
-                values = values[values != ""]
-
-                mobiles.update(values.tolist())
-
-        return mobiles
-
-    except Exception as e:
-        raise Exception(
-            f"تعذر قراءة الملف {uploaded_file.name}: {e}"
-        )
+def get_egypt_time():
+    return datetime.now(pytz.timezone("Africa/Cairo")).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def create_excel_download(df, sheet_name="Clean_Batch"):
-    """
-    إنشاء Excel داخل الذاكرة للتحميل.
-    """
+def create_excel_download(df: pd.DataFrame, sheet_name: str = "Data") -> bytes:
     output = BytesIO()
-
-    with pd.ExcelWriter(
-        output,
-        engine="xlsxwriter"
-    ) as writer:
-
-        df.to_excel(
-            writer,
-            index=False,
-            sheet_name=sheet_name
-        )
-
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name=sheet_name)
         workbook = writer.book
         worksheet = writer.sheets[sheet_name]
 
@@ -98,706 +49,364 @@ def create_excel_download(df, sheet_name="Clean_Batch"):
             "border": 1,
         })
 
-        for col_num, column_name in enumerate(df.columns):
+        for col_num, col_name in enumerate(df.columns):
+            worksheet.write(0, col_num, col_name, header_format)
 
-            worksheet.write(
-                0,
-                col_num,
-                column_name,
-                header_format
-            )
-
-        for col_num, column_name in enumerate(df.columns):
-
-            max_length = len(str(column_name))
-
+        for col_num, col_name in enumerate(df.columns):
+            max_len = len(str(col_name))
             if not df.empty:
-
-                sample_values = (
-                    df[column_name]
-                    .astype(str)
-                    .head(1000)
-                )
-
-                for value in sample_values:
-                     safe_value = "" if pd.isna(value) else str(value)
-
-                     max_length = max(
-                        max_length,
-                        len(safe_value)
-                    )
-
-            width = min(
-                max(max_length + 2, 12),
-                40
-            )
-
-            worksheet.set_column(
-                col_num,
-                col_num,
-                width
-            )
+                sample = df[col_name].astype(str).head(400)
+                for v in sample:
+                    max_len = max(max_len, len(str(v)))
+            worksheet.set_column(col_num, col_num, min(max(max_len + 2, 12), 40))
 
         worksheet.freeze_panes(1, 0)
-
-
-
-        
-    if len(df.columns) > 0:
-        worksheet.autofilter(
-        0,
-        0,
-        len(df),
-        len(df.columns) - 1
-     )
-
+        if len(df.columns) > 0:
+            worksheet.autofilter(0, 0, max(len(df), 1), len(df.columns) - 1)
 
     output.seek(0)
-
     return output.getvalue()
 
 
-def create_duplicate_report(df):
-    """
-    إنشاء ملف Duplicate Report.
-    """
-    return create_excel_download(
-        df,
-        sheet_name="Duplicates"
-    )
+def load_master() -> pd.DataFrame:
+    if not os.path.exists(MASTER_FILE):
+        return pd.DataFrame()
+    try:
+        return pd.read_parquet(MASTER_FILE)
+    except Exception:
+        return pd.DataFrame()
 
 
-def validate_bank_file(df):
-    """
-    التأكد أن ملف البنك يحتوي على الأعمدة المطلوبة.
-    """
-    df.columns = (
-        df.columns
-        .astype(str)
-        .str.strip()
-    )
-
-    missing_columns = [
-        col
-        for col in BANK_REQUIRED_COLUMNS
-        if col not in df.columns
-    ]
-
-    return missing_columns
+def save_master(df: pd.DataFrame):
+    df.to_parquet(MASTER_FILE, index=False)
 
 
-def process_batch_cleaner(
-    bank_file,
-    batch_files_by_year
-):
-    """
-    تنفيذ عملية البحث كاملة.
+def get_master_mobile_set() -> set:
+    df = load_master()
+    if df.empty or SEARCH_COLUMN not in df.columns:
+        return set()
+    mobiles = normalize_mobile(df[SEARCH_COLUMN])
+    return set(mobiles[mobiles != ""].tolist())
 
-    يبحث عن SSNumber الخاص بكل سجل
-    في جميع الـ Batches المختارة.
 
-    الملفات الأصلية لا يتم تعديلها.
-    """
-
-    # ==================================================
-    # 1. قراءة ملف البنك
-    # ==================================================
-
-    bank_file.seek(0)
-
-    bank_df = pd.read_excel(
-        bank_file,
-        dtype=str
-    )
-
-    bank_df.columns = (
-        bank_df.columns
-        .astype(str)
-        .str.strip()
-    )
-
-    missing_columns = validate_bank_file(
-        bank_df
-    )
-
-    if missing_columns:
-
-        raise ValueError(
-            "ملف البنك ناقص الأعمدة التالية: "
-            + ", ".join(missing_columns)
-        )
-
-    # الاحتفاظ بنفس أعمدة البنك وترتيبها
-    original_columns = bank_df.columns.tolist()
-
-    # SSNumber للمقارنة فقط
-    bank_search_key = normalize_mobile(
-        bank_df[BATCH_SEARCH_COLUMN]
-    )
-
-    # ==================================================
-    # 2. قراءة كل Batch
-    # ==================================================
-
-    all_existing_mobiles = set()
-
-    year_mobiles = {}
-
-    for year, batch_file in batch_files_by_year.items():
-
-        if batch_file is None:
-            continue
-
-        try:
-
-            mobiles = read_mobiles_from_excel(
-                batch_file
-            )
-
-            year_mobiles[year] = mobiles
-
-            all_existing_mobiles.update(
-                mobiles
-            )
-
-        except Exception as e:
-
-            raise Exception(
-                f"خطأ أثناء قراءة Batch {year}: {e}"
-            )
-
-    # ==================================================
-    # 3. تحديد الـ Duplicates
-    # ==================================================
-
-    duplicate_mask = bank_search_key.isin(
-        all_existing_mobiles
-    )
-
-    duplicate_indices = bank_df.index[
-        duplicate_mask
-    ]
-
-    clean_indices = bank_df.index[
-        ~duplicate_mask
-    ]
-
-    # ==================================================
-    # 4. Clean Batch
-    # ==================================================
-
-    clean_df = bank_df.loc[
-        clean_indices,
-        original_columns
-    ].copy()
-
-    clean_df.reset_index(
-        drop=True,
-        inplace=True
-    )
-
-    # ==================================================
-    # 5. Duplicate Report
-    # ==================================================
-
-    duplicate_df = bank_df.loc[
-        duplicate_indices,
-        original_columns
-    ].copy()
-
-    duplicate_df.reset_index(
-        drop=True,
-        inplace=True
-    )
-
-    if not duplicate_df.empty:
-
-        duplicate_search_keys = normalize_mobile(
-            duplicate_df[BATCH_SEARCH_COLUMN]
-        )
-
-        found_in_values = []
-
-        for key in duplicate_search_keys:
-
-            found_years = []
-
-            for year, year_set in year_mobiles.items():
-
-                if key and key in year_set:
-                    found_years.append(year)
-
-            found_in_values.append(
-                ", ".join(found_years)
-            )
-
-        duplicate_df["Found In"] = (
-            found_in_values
-        )
-
-    else:
-
-        duplicate_df["Found In"] = pd.Series(
-            dtype=str
-        )
-
-    # ==================================================
-    # 6. Summary
-    # ==================================================
-
-    summary = {
-        "bank_total": len(bank_df),
-        "duplicates": len(duplicate_df),
-        "clean_records": len(clean_df),
-        "batches_checked": list(
-            batch_files_by_year.keys()
-        ),
+def log_update(action: str, before: int, after: int, added: int, username: str):
+    log_entry = {
+        "الوقت": get_egypt_time(),
+        "المستخدم": username,
+        "العملية": action,
+        "قبل": before,
+        "بعد": after,
+        "المضاف": added,
     }
+    log_df = pd.DataFrame([log_entry])
 
-    return (
-        clean_df,
-        duplicate_df,
-        summary
-    )
+    if os.path.exists(LOG_FILE):
+        old = pd.read_csv(LOG_FILE)
+        log_df = pd.concat([old, log_df], ignore_index=True)
+
+    log_df.to_csv(LOG_FILE, index=False)
 
 
-def render_batch_cleaner():
-    """
-    واجهة Batch Cleaner كاملة.
-    """
+# ==================================================
+# قسم إدارة البيانات (للمسؤولين فقط)
+# ==================================================
+def render_master_management():
+    st.markdown("## 🔐 إدارة البيانات الرئيسية")
+    st.caption("هذا القسم متاح فقط للمستخدمين المصرح لهم")
 
-    st.markdown(
-        "<h1>🧹 Batch Cleaner</h1>",
-        unsafe_allow_html=True
-    )
+    master_df = load_master()
+    master_count = len(master_df)
 
-    st.markdown(
-        """
-        <p style="
-            text-align:center;
-            color:#94a3b8;
-            font-size:1.05rem;
-        ">
-        تنظيف Batch البنك ومقارنة الـ SSNumber
-        مع الـ Batches السابقة بدون تعديل الملفات الأصلية
-        </p>
-        """,
-        unsafe_allow_html=True
-    )
+    # بطاقات الإحصائيات
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 1.2rem; border-radius: 16px; text-align: center;">
+            <p style="color: #c4b5fd; margin: 0; font-size: 0.9rem;">إجمالي السجلات</p>
+            <p style="color: white; font-size: 1.8rem; font-weight: 800; margin: 0.3rem 0 0 0;">{master_count:,}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
+    with c2:
+        unique_count = 0
+        if master_count > 0 and SEARCH_COLUMN in master_df.columns:
+            unique = normalize_mobile(master_df[SEARCH_COLUMN])
+            unique_count = unique[unique != ""].nunique()
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #059669, #10b981); padding: 1.2rem; border-radius: 16px; text-align: center;">
+            <p style="color: #a7f3d0; margin: 0; font-size: 0.9rem;">موبايلات فريدة</p>
+            <p style="color: white; font-size: 1.8rem; font-weight: 800; margin: 0.3rem 0 0 0;">{unique_count:,}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c3:
+        last_update = "—"
+        if os.path.exists(LOG_FILE):
+            try:
+                log = pd.read_csv(LOG_FILE)
+                if not log.empty:
+                    last_update = str(log.iloc[-1]["الوقت"])[:16]
+            except Exception:
+                pass
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #d97706, #f59e0b); padding: 1.2rem; border-radius: 16px; text-align: center;">
+            <p style="color: #fde68a; margin: 0; font-size: 0.9rem;">آخر تحديث</p>
+            <p style="color: white; font-size: 1.1rem; font-weight: 700; margin: 0.3rem 0 0 0;">{last_update}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # ==================================================
-    # Bank File
-    # ==================================================
+    # ---- إضافة بيانات ----
+    st.markdown("### 🚀 إضافة بيانات جديدة")
 
-    st.subheader("📥 Bank File")
-
-    bank_file = st.file_uploader(
-        "ارفع ملف البنك",
+    update_file = st.file_uploader(
+        "ارفع ملف Excel (البيانات التاريخية أو السجلات الجديدة)",
         type=["xlsx", "xls"],
-        key="batch_cleaner_bank_file",
-        help=(
-            "يمكن رفع ملف البنك بأي أعمدة، بشرط وجود "
-    "عمود Mobile لاستخدامه في البحث. "
-    "ستُحفظ باقي الأعمدة الموجودة كما هي."
-        )
+        key="master_upload_secure",
+        help="بعد أول مرة يُفضل رفع السجلات الجديدة فقط"
     )
 
-    if bank_file is not None:
+    if update_file:
+        update_file.seek(0)
+        df_new = pd.read_excel(update_file, dtype=str)
+        df_new.columns = df_new.columns.astype(str).str.strip()
 
-        try:
+        if SEARCH_COLUMN not in df_new.columns:
+            st.error("❌ الملف لازم يحتوي على عمود اسمه **Mobile**")
+        else:
+            existing_set = get_master_mobile_set()
+            new_mobiles = normalize_mobile(df_new[SEARCH_COLUMN])
+            is_new = (~new_mobiles.isin(existing_set)) & (new_mobiles != "")
+            new_count = int(is_new.sum())
+            dup_count = int(((new_mobiles.isin(existing_set)) & (new_mobiles != "")).sum())
+            empty_count = int((new_mobiles == "").sum())
 
-            bank_file.seek(0)
+            st.markdown(f"""
+            <div style="background: rgba(79, 70, 229, 0.1); border: 1px solid rgba(79, 70, 229, 0.3); border-radius: 12px; padding: 1rem; margin: 1rem 0;">
+                <p style="margin: 0.2rem 0;">📊 إجمالي الصفوف في الملف: <b>{len(df_new):,}</b></p>
+                <p style="margin: 0.2rem 0; color: #34d399;">✅ سجلات جديدة هتتضاف: <b>{new_count:,}</b></p>
+                <p style="margin: 0.2rem 0; color: #fbbf24;">⚠️ موجودة مسبقاً (هتتجاهل): <b>{dup_count:,}</b></p>
+                <p style="margin: 0.2rem 0; color: #f87171;">📭 موبايل فاضي: <b>{empty_count:,}</b></p>
+            </div>
+            """, unsafe_allow_html=True)
 
-            preview_df = pd.read_excel(
-                bank_file,
-                dtype=str,
-                nrows=5
-            )
+            if new_count > 0:
+                if st.button("✅ تأكيد الإضافة الآن", type="primary", use_container_width=True):
+                    before = master_count
+                    df_to_add = df_new.loc[is_new].copy()
 
-            preview_df.columns = (
-                preview_df.columns
-                .astype(str)
-                .str.strip()
-            )
+                    if master_df.empty:
+                        final_df = df_to_add
+                    else:
+                        final_df = pd.concat([master_df, df_to_add], ignore_index=True, sort=False)
 
-            missing = validate_bank_file(
-                preview_df
-            )
+                    save_master(final_df)
+                    after = len(final_df)
 
-            if missing:
+                    username = st.session_state.get("username", "unknown")
+                    log_update("إضافة سجلات", before, after, new_count, username)
 
-                st.error(
-                    "❌ ملف البنك ناقص الأعمدة: "
-                    + ", ".join(missing)
-                )
-
+                    st.success(f"🎉 تم إضافة **{new_count:,}** سجل بنجاح! الإجمالي الآن **{after:,}**")
+                    st.balloons()
+                    st.rerun()
             else:
-
-                detected_columns = " | ".join(
-                    preview_df.columns.tolist()
-                )
-
-                st.success(
-                    "✅ تم التعرف على ملف البنك بنجاح"
-                )
-
-                st.markdown(
-                    f"""
-                    <div style="
-                        background:rgba(34,197,94,0.08);
-                        border:1px solid rgba(34,197,94,0.3);
-                        border-radius:12px;
-                        padding:12px 16px;
-                        margin:10px 0 20px 0;
-                    ">
-
-                        <strong>Detected columns:</strong><br>
-
-                        {detected_columns}
-
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-                st.caption(
-                    "🔑 Search Key: Mobile"
-                )
-
-        except Exception as e:
-
-            st.error(
-                f"❌ تعذر قراءة ملف البنك: {e}"
-            )
+                st.warning("مفيش سجلات جديدة للإضافة في الملف ده.")
 
     st.markdown("---")
 
-    # ==================================================
-    # Existing Batches
-    # ==================================================
-
-    st.subheader("📚 Existing Batches")
-
-    st.caption(
-        "اختار الـ Batches التي تريد البحث فيها. "
-        "الملفات الأصلية لن يتم تعديلها."
-    )
-
-    selected_years = {}
-
-    years = [
-        "2023",
-        "2024",
-        "2025",
-        "2026"
-    ]
-
-    for year in years:
-
-        col1, col2 = st.columns([1, 4])
-
-        with col1:
-
-            enabled = st.checkbox(
-                year,
-                value=True,
-                key=f"batch_year_{year}"
-            )
-
-        with col2:
-
-            if enabled:
-
-                uploaded_batch = st.file_uploader(
-                    f"📂 Batch {year}",
-                    type=["xlsx", "xls"],
-                    key=f"batch_file_{year}",
-                    help=(
-                        f"ارفع ملف أو ملف Batch سنة {year}"
-                    )
-                )
-
-                if uploaded_batch is not None:
-
-                    selected_years[year] = (
-                        uploaded_batch
-                    )
-
-                    st.success(
-                        f"✅ Batch {year} جاهز للبحث"
-                    )
-
-    st.markdown("---")
-
-    # ==================================================
-    # Check Button
-    # ==================================================
-
-    check_button = st.button(
-        "🔍 Check Duplicates",
-        use_container_width=True,
-        type="primary"
-    )
-
-    if check_button:
-
-        if bank_file is None:
-
-            st.error(
-                "❌ ارفع ملف البنك أولًا."
-            )
-
-            return
-
-        if not selected_years:
-
-            st.error(
-                "❌ اختار وارفع Batch واحد على الأقل."
-            )
-
-            return
-
-        # التأكد أن كل Batch مختار تم رفعه
-
-        missing_selected_files = []
-
-        for year in years:
-
-            checkbox_key = (
-                f"batch_year_{year}"
-            )
-
-            if st.session_state.get(
-                checkbox_key,
-                False
-            ):
-
-                if year not in selected_years:
-
-                    missing_selected_files.append(
-                        year
-                    )
-
-        if missing_selected_files:
-
-            st.warning(
-                "⚠️ اخترت السنوات التالية ولكن لم ترفع ملفاتها: "
-                + ", ".join(
-                    missing_selected_files
-                )
-            )
-
-            return
-
-        # ==================================================
-        # Processing
-        # ==================================================
-
-        progress = st.progress(0)
-
-        status = st.empty()
-
-        try:
-
-            status.info(
-                "⏳ جاري قراءة الـ Batches..."
-            )
-
-            progress.progress(20)
-
-            (
-                clean_df,
-                duplicate_df,
-                summary
-            ) = process_batch_cleaner(
-                bank_file,
-                selected_years
-            )
-
-            progress.progress(80)
-
-            status.info(
-                "⏳ جاري تجهيز النتائج..."
-            )
-
-            st.session_state[
-                "batch_clean_result"
-            ] = clean_df
-
-            st.session_state[
-                "batch_duplicate_result"
-            ] = duplicate_df
-
-            st.session_state[
-                "batch_clean_summary"
-            ] = summary
-
-            progress.progress(100)
-
-            status.success(
-                "✅ تم فحص الـ Batch بنجاح"
-            )
-
-        except Exception as e:
-
-            progress.empty()
-
-            st.error(
-                f"❌ حدث خطأ أثناء الفحص:\n\n{e}"
-            )
-
-            return
-
-    # ==================================================
-    # Results
-    # ==================================================
-
-    if (
-        "batch_clean_result"
-        not in st.session_state
-    ):
-        return
-
-    clean_df = st.session_state[
-        "batch_clean_result"
-    ]
-
-    duplicate_df = st.session_state[
-        "batch_duplicate_result"
-    ]
-
-    summary = st.session_state[
-        "batch_clean_summary"
-    ]
-
-    st.markdown("---")
-
-    st.subheader("📊 Results")
-
-    # ==================================================
-    # Metrics
-    # ==================================================
-
-    col1, col2, col3 = st.columns(3)
+    # ---- أزرار التحكم ----
+    col1, col2 = st.columns(2)
 
     with col1:
-
-        st.metric(
-            "إجمالي البنك",
-            f"{summary['bank_total']:,}"
-        )
+        if master_count > 0:
+            excel_data = create_excel_download(master_df, "Master_Database")
+            st.download_button(
+                "📥 تحميل القاعدة كاملة",
+                data=excel_data,
+                file_name=f"Master_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
 
     with col2:
+        if master_count > 0:
+            if st.button("🗑️ مسح القاعدة بالكامل", use_container_width=True):
+                st.session_state["confirm_clear_master"] = True
 
-        st.metric(
-            "Duplicates",
-            f"{summary['duplicates']:,}"
-        )
+    if st.session_state.get("confirm_clear_master"):
+        st.error("⚠️ تحذير: هل أنت متأكد من مسح كل البيانات؟ لا يمكن التراجع.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("نعم، امسح كل شيء", type="primary"):
+                before = master_count
+                if os.path.exists(MASTER_FILE):
+                    os.remove(MASTER_FILE)
+                log_update("مسح كامل", before, 0, 0, st.session_state.get("username", "unknown"))
+                st.session_state["confirm_clear_master"] = False
+                st.success("تم مسح القاعدة بالكامل")
+                st.rerun()
+        with c2:
+            if st.button("إلغاء"):
+                st.session_state["confirm_clear_master"] = False
+                st.rerun()
 
-    with col3:
+    # ---- سجل العمليات ----
+    st.markdown("---")
+    st.markdown("### 📜 سجل العمليات")
 
-        st.metric(
-            "Clean Records",
-            f"{summary['clean_records']:,}"
-        )
+    if os.path.exists(LOG_FILE):
+        try:
+            log_df = pd.read_csv(LOG_FILE)
+            st.dataframe(log_df.tail(15), use_container_width=True, height=280)
+        except Exception:
+            st.info("تعذر قراءة السجل")
+    else:
+        st.info("لا توجد عمليات مسجلة بعد")
+
+
+# ==================================================
+# قسم فحص شيت البنك (متاح للجميع)
+# ==================================================
+def render_bank_check():
+    st.markdown("## 📥 فحص شيت البنك")
+
+    master_count = len(load_master())
+    if master_count == 0:
+        st.warning("⚠️ قاعدة البيانات الرئيسية فارغة. يجب على المسؤول رفع البيانات أولاً.")
+        return
+
+    st.caption(f"البحث يتم ضد **{master_count:,}** سجل • المفتاح: **Mobile**")
+
+    bank_file = st.file_uploader(
+        "ارفع ملف البنك هنا",
+        type=["xlsx", "xls"],
+        key="bank_uploader_main",
+        help="لازم يحتوي على عمود Mobile"
+    )
+
+    if bank_file:
+        try:
+            bank_file.seek(0)
+            preview = pd.read_excel(bank_file, dtype=str, nrows=2)
+            preview.columns = preview.columns.astype(str).str.strip()
+            if "Mobile" not in preview.columns:
+                st.error("❌ ملف البنك لازم يحتوي على عمود **Mobile**")
+            else:
+                st.success("✅ تم التعرف على الملف بنجاح")
+        except Exception as e:
+            st.error(f"خطأ: {e}")
+
+    if st.button("🔍 ابدأ الفحص الآن", type="primary", use_container_width=True, disabled=bank_file is None):
+        with st.spinner("جاري البحث في القاعدة..."):
+            try:
+                bank_file.seek(0)
+                bank_df = pd.read_excel(bank_file, dtype=str)
+                bank_df.columns = bank_df.columns.astype(str).str.strip()
+
+                if "Mobile" not in bank_df.columns:
+                    st.error("عمود Mobile غير موجود")
+                    return
+
+                original_cols = bank_df.columns.tolist()
+                bank_key = normalize_mobile(bank_df["Mobile"])
+                master_set = get_master_mobile_set()
+
+                dup_mask = bank_key.isin(master_set)
+
+                dup_df = bank_df.loc[dup_mask, original_cols].copy().reset_index(drop=True)
+                clean_df = bank_df.loc[~dup_mask, original_cols].copy().reset_index(drop=True)
+
+                st.session_state["bc_clean"] = clean_df
+                st.session_state["bc_dup"] = dup_df
+                st.session_state["bc_summary"] = {
+                    "total": len(bank_df),
+                    "duplicates": len(dup_df),
+                    "clean": len(clean_df),
+                }
+                st.success("✅ الفحص خلص بنجاح")
+                st.balloons()
+
+            except Exception as e:
+                st.error(f"حدث خطأ: {e}")
+                return
+
+    if "bc_clean" not in st.session_state:
+        return
+
+    summary = st.session_state["bc_summary"]
+    clean_df = st.session_state["bc_clean"]
+    dup_df = st.session_state["bc_dup"]
 
     st.markdown("---")
+    st.markdown("### 📊 النتائج")
 
-    # ==================================================
-    # Duplicate Result
-    # ==================================================
+    m1, m2, m3 = st.columns(3)
+    m1.metric("إجمالي البنك", f"{summary['total']:,}")
+    m2.metric("Duplicates", f"{summary['duplicates']:,}")
+    m3.metric("Clean", f"{summary['clean']:,}")
 
+    st.markdown("---")
     st.markdown("### 🟥 Duplicate Records")
 
-    if duplicate_df.empty:
-
-        st.success(
-            "🎉 لا يوجد أي Duplicate في الـ Batches المحددة."
-        )
-
+    if dup_df.empty:
+        st.success("🎉 مفيش أي تكرار")
     else:
-
-        st.warning(
-            f"تم العثور على "
-            f"**{len(duplicate_df):,}** "
-            f"سجل موجود بالفعل."
-        )
-
-        with st.expander(
-            "👁️ معاينة الـ Duplicates",
-            expanded=False
-        ):
-
-            st.dataframe(
-                duplicate_df.head(100),
-                use_container_width=True,
-                height=400
-            )
-
-        duplicate_excel = (
-            create_duplicate_report(
-                duplicate_df
-            )
-        )
-
+        st.warning(f"تم العثور على **{len(dup_df):,}** سجل مكرر")
+        with st.expander("👁️ معاينة Duplicates"):
+            st.dataframe(dup_df.head(80), use_container_width=True, height=320)
         st.download_button(
-            label="📥 تحميل Duplicate Records",
-            data=duplicate_excel,
+            "📥 تحميل Duplicates",
+            data=create_excel_download(dup_df, "Duplicates"),
             file_name="Duplicates.xlsx",
-            mime=(
-                "application/vnd.openxmlformats-officedocument."
-                "spreadsheetml.sheet"
-            ),
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
-            key="download_duplicates"
+            key="dl_dup_btn",
         )
 
     st.markdown("---")
-
-    # ==================================================
-    # Clean Batch
-    # ==================================================
-
     st.markdown("### 🟢 Clean Batch")
+    st.success(f"الملف النظيف فيه **{len(clean_df):,}** سجل")
 
-    st.success(
-        f"الملف النظيف يحتوي على "
-        f"**{len(clean_df):,}** سجل."
-    )
-
-    with st.expander(
-        "👁️ معاينة Clean Batch",
-        expanded=False
-    ):
-
-        st.dataframe(
-            clean_df.head(100),
-            use_container_width=True,
-            height=400
-        )
-
-    clean_excel = create_excel_download(
-        clean_df,
-        sheet_name="Clean_Batch"
-    )
+    with st.expander("👁️ معاينة Clean"):
+        st.dataframe(clean_df.head(80), use_container_width=True, height=320)
 
     st.download_button(
-        label="📥 تحميل Clean Batch",
-        data=clean_excel,
+        "📥 تحميل Clean Batch",
+        data=create_excel_download(clean_df, "Clean_Batch"),
         file_name="Clean_Batch.xlsx",
-        mime=(
-            "application/vnd.openxmlformats-officedocument."
-            "spreadsheetml.sheet"
-        ),
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True,
-        key="download_clean_batch"
+        key="dl_clean_btn",
     )
 
+
+# ==================================================
+# الواجهة الرئيسية
+# ==================================================
+def render_batch_cleaner():
+    st.markdown("<h1>🧹 Batch Cleaner</h1>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <p style="text-align:center; color:#94a3b8; font-size:1.05rem;">
+        نظام تنظيف شيتات البنك • بيانات مخزنة بشكل دائم وآمن
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
 
-    st.info(
-        "🔒 الملفات الأصلية للـ Batches لم يتم تعديلها. "
-        "تم استخدام Mobile للمقارنة فقط."
-    )
+    current_user = st.session_state.get("username", "")
+    is_allowed = current_user in MASTER_ALLOWED_USERS
+
+    # ---- التبويبات ----
+    if is_allowed:
+        tab1, tab2 = st.tabs(["📥 فحص شيت البنك", "🔐 إدارة البيانات الرئيسية"])
+        with tab1:
+            render_bank_check()
+        with tab2:
+            render_master_management()
+    else:
+        # اليوزر العادي يشوف فحص البنك بس
+        render_bank_check()

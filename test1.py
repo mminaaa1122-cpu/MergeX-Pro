@@ -14,6 +14,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 import os
 from batch_cleaner import render_batch_cleaner
+from member_checker import render_member_checker
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
 # ────────────────────────────────────────────────
@@ -301,6 +302,12 @@ USERS = {
         "role": "admin",
         "name": "الأدمن"
     },
+    "salma": {
+        "password": "salma13",
+        "role": "user",
+        "name": "salma"
+    },
+
     "selvana": {
         "password": "selvana12",
         "role": "user",
