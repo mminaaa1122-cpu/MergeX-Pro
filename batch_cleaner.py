@@ -90,7 +90,8 @@ def get_master_mobile_set() -> set:
 
 
 def log_update(action: str, before: int, after: int, added: int, username: str):
-    log_entry = {
+    # الصف الجديد فقط
+    new_row = {
         "الوقت": get_egypt_time(),
         "المستخدم": username,
         "العملية": action,
@@ -98,13 +99,29 @@ def log_update(action: str, before: int, after: int, added: int, username: str):
         "بعد": after,
         "المضاف": added,
     }
-    log_df = pd.DataFrame([log_entry])
+    new_df = pd.DataFrame([new_row])
 
+    # 1. الحفظ في CSV
     if os.path.exists(LOG_FILE):
-        old = pd.read_csv(LOG_FILE)
-        log_df = pd.concat([old, log_df], ignore_index=True)
+        old_csv = pd.read_csv(LOG_FILE)
+        full_csv = pd.concat([old_csv, new_df], ignore_index=True)
+    else:
+        full_csv = new_df
 
-    log_df.to_csv(LOG_FILE, index=False)
+    full_csv.to_csv(LOG_FILE, index=False)
+
+    # 2. النسخ الاحتياطي في Excel
+    BACKUP_LOG_FILE = "master_update_log_backup.xlsx"
+    try:
+        if os.path.exists(BACKUP_LOG_FILE):
+            old_backup = pd.read_excel(BACKUP_LOG_FILE, dtype=str)
+            full_backup = pd.concat([old_backup, new_df], ignore_index=True)
+        else:
+            full_backup = new_df
+
+        full_backup.to_excel(BACKUP_LOG_FILE, index=False)
+    except Exception as e:
+        print(f"خطأ في حفظ الـ Backup: {e}")
 
 
 # ==================================================
@@ -117,8 +134,18 @@ def render_master_management():
     master_df = load_master()
     master_count = len(master_df)
 
-    # بطاقات الإحصائيات
+    unique_count = 0
+    duplicate_count = 0
+
+    if master_count > 0 and SEARCH_COLUMN in master_df.columns:
+        mobiles = normalize_mobile(master_df[SEARCH_COLUMN])
+        mobiles = mobiles[mobiles != ""]
+        unique_count = mobiles.nunique()
+        duplicate_count = len(mobiles) - unique_count
+
+    # ---- البطاقات ----
     c1, c2, c3 = st.columns(3)
+
     with c1:
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 1.2rem; border-radius: 16px; text-align: center;">
@@ -128,10 +155,6 @@ def render_master_management():
         """, unsafe_allow_html=True)
 
     with c2:
-        unique_count = 0
-        if master_count > 0 and SEARCH_COLUMN in master_df.columns:
-            unique = normalize_mobile(master_df[SEARCH_COLUMN])
-            unique_count = unique[unique != ""].nunique()
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #059669, #10b981); padding: 1.2rem; border-radius: 16px; text-align: center;">
             <p style="color: #a7f3d0; margin: 0; font-size: 0.9rem;">موبايلات فريدة</p>
@@ -155,7 +178,73 @@ def render_master_management():
         </div>
         """, unsafe_allow_html=True)
 
+    # ---- رسالة المكررين ----
+        # ---- رسالة المكررين ----
+    if duplicate_count > 0:
+        # عدد الصفوف اللي فيها تكرار (اللي بتنزل في ملف التصدير)
+        mobiles = normalize_mobile(master_df[SEARCH_COLUMN])
+        rows_with_dup = int((mobiles.duplicated(keep=False) & (mobiles != "")).sum())
+
+        st.markdown(f"""
+        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 0.9rem 1.2rem; margin-top: 1rem; text-align: center;">
+            <p style="color: #fca5a5; margin: 0 0 0.4rem 0; font-size: 1.05rem;">
+                ⚠️ في <b>{rows_with_dup:,}</b> صف رقم الموبايل بتاعه مكرر
+            </p>
+            <p style="color: #f87171; margin: 0; font-size: 0.92rem;">
+                (عدد التكرارات الزيادة = {duplicate_count:,} &nbsp;|&nbsp; 84119 - 83628 = 491)
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.success("✅ مفيش أي أرقام موبايل مكررة في القاعدة")
+
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # ---- أزرار التصدير تحت البطاقات ----
+    if master_count > 0:
+        e1, e2, e3 = st.columns(3)
+
+        with e1:
+            excel_all = create_excel_download(master_df, "All_Records")
+            st.download_button(
+                "📥 تصدير كل السجلات",
+                data=excel_all,
+                file_name=f"All_Records_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="export_all"
+            )
+
+        with e2:
+            if SEARCH_COLUMN in master_df.columns:
+                unique_df = master_df.drop_duplicates(subset=[SEARCH_COLUMN], keep="first")
+                excel_unique = create_excel_download(unique_df, "Unique_Mobiles")
+                st.download_button(
+                    "📥 تصدير الموبايلات الفريدة",
+                    data=excel_unique,
+                    file_name=f"Unique_Mobiles_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="export_unique"
+                )
+
+        with e3:
+            if SEARCH_COLUMN in master_df.columns and duplicate_count > 0:
+                mobiles = normalize_mobile(master_df[SEARCH_COLUMN])
+                dup_mask = mobiles.duplicated(keep=False) & (mobiles != "")
+                dup_df = master_df.loc[dup_mask].copy()
+                excel_dups = create_excel_download(dup_df, "Duplicate_Mobiles")
+                st.download_button(
+                    "📥 تصدير المكررين",
+                    data=excel_dups,
+                    file_name=f"Duplicate_Mobiles_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="export_dups"
+                )
+            else:
+                st.button("📥 تصدير المكررين", disabled=True, use_container_width=True)
+
     st.markdown("---")
 
     # ---- إضافة بيانات ----
@@ -217,21 +306,8 @@ def render_master_management():
     st.markdown("---")
 
     # ---- أزرار التحكم ----
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if master_count > 0:
-            excel_data = create_excel_download(master_df, "Master_Database")
-            st.download_button(
-                "📥 تحميل القاعدة كاملة",
-                data=excel_data,
-                file_name=f"Master_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
-            )
-
-    with col2:
-        if master_count > 0:
+    
+    if master_count > 0:
             if st.button("🗑️ مسح القاعدة بالكامل", use_container_width=True):
                 st.session_state["confirm_clear_master"] = True
 
