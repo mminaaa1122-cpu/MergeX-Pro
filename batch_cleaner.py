@@ -260,7 +260,7 @@ def render_master_management():
         st.markdown(f"""
         <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 0.9rem 1.2rem; margin-top: 1rem; text-align: center;">
             <p style="color: #fca5a5; margin: 0 0 0.4rem 0; font-size: 1.05rem;">
-                ⚠️ في <b>{rows_with_dup:,}</b> صف رقم الموبايل بتاعه مكرر
+                ⚠️  <b>{rows_with_dup:,}</b> records contain duplicate mobile numbers.
             </p>
             <p style="color: #f87171; margin: 0; font-size: 0.92rem;">
                 (عدد التكرارات الزيادة = {duplicate_count:,} &nbsp;|&nbsp; 84119 - 83628 = 491)
@@ -292,7 +292,7 @@ def render_master_management():
                 unique_df = master_df.drop_duplicates(subset=[SEARCH_COLUMN], keep="first")
                 excel_unique = create_excel_download(unique_df, "Unique_Mobiles")
                 st.download_button(
-                    "📥 تصدير الموبايلات الفريدة",
+                    "📥 Export Unique Mobile Numbers",
                     data=excel_unique,
                     file_name=f"Unique_Mobiles_{datetime.now().strftime('%Y%m%d')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -461,7 +461,7 @@ def render_bank_check():
             if "Mobile" not in preview.columns:
                 st.error("❌ ملف البنك لازم يحتوي على عمود **Mobile**")
             else:
-                st.success("✅ تم التعرف على الملف بنجاح")
+                st.success("✅ File Recognized Successfully")
         except Exception as e:
             st.error(f"خطأ: {e}")
 
@@ -492,7 +492,7 @@ def render_bank_check():
                     "duplicates": len(dup_df),
                     "clean": len(clean_df),
                 }
-                st.success("✅ الفحص خلص بنجاح")
+                st.success("✅ Validation Completed Successfully")
                 st.balloons()
 
             except Exception as e:
@@ -507,7 +507,7 @@ def render_bank_check():
     dup_df = st.session_state["bc_dup"]
 
     st.markdown("---")
-    st.markdown("### 📊 النتائج")
+    st.markdown("### 📊 Results")
 
     m1, m2, m3 = st.columns(3)
     m1.metric("Total Bank Records", f"{summary['total']:,}")
@@ -518,7 +518,7 @@ def render_bank_check():
     st.markdown("### 🟥 Duplicate Records")
 
     if dup_df.empty:
-        st.success("🎉 مفيش أي تكرار")
+        st.success("🎉 No Duplicate Mobile Numbers Found")
     else:
         st.warning(f"تم العثور على **{len(dup_df):,}** سجل مكرر")
         with st.expander("👁️ معاينة Duplicates"):
