@@ -377,36 +377,44 @@ def render_master_management():
 
     st.markdown("---")
 
-    # ---- أزرار التحكم ----
-    
+       # ---- زرار المسح ----
     if master_count > 0:
-            if st.button("🗑️ مسح القاعدة بالكامل", use_container_width=True):
-                st.session_state["confirm_clear_master"] = True
+        if st.button("🗑️ مسح القاعدة بالكامل", use_container_width=True):
+            st.session_state["confirm_clear_master"] = True
 
     if st.session_state.get("confirm_clear_master"):
         st.error("⚠️ تحذير: هل أنت متأكد من مسح كل البيانات؟ لا يمكن التراجع.")
         c1, c2 = st.columns(2)
         with c1:
             if st.button("نعم، امسح كل شيء", type="primary"):
-               before = master_count
+                before = master_count
 
-    # مسح من Supabase
-    client = get_supabase()
-    if client:
-        try:
-            client.storage.from_(BUCKET_NAME).remove([MASTER_FILE])
-        except Exception:
-            pass
+                # مسح من Supabase
+                client = get_supabase()
+                if client:
+                    try:
+                        client.storage.from_(BUCKET_NAME).remove([MASTER_FILE])
+                    except Exception:
+                        pass
 
-    # مسح الملف المحلي لو موجود
-    if os.path.exists(MASTER_FILE):
-        os.remove(MASTER_FILE)
+                # مسح المحلي
+                if os.path.exists(MASTER_FILE):
+                    try:
+                        os.remove(MASTER_FILE)
+                    except Exception:
+                        pass
 
-    log_update("مسح كامل", before, 0, 0, st.session_state.get("username", "unknown"))
-    st.session_state["confirm_clear_master"] = False
-    st.success("تم مسح القاعدة بالكامل")
-    st.rerun()
-    with c2:
+                log_update(
+                    "مسح كامل",
+                    before,
+                    0,
+                    0,
+                    st.session_state.get("username", "unknown"),
+                )
+                st.session_state["confirm_clear_master"] = False
+                st.success("تم مسح القاعدة بالكامل")
+                st.rerun()
+        with c2:
             if st.button("إلغاء"):
                 st.session_state["confirm_clear_master"] = False
                 st.rerun()
