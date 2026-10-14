@@ -3,3 +3,5 @@ pandas
 openpyxl
 xlsxwriter
 pytz
+supabase
+pyarrow

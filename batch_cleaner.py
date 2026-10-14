@@ -10,7 +10,9 @@ import pytz
 # ==================================================
 MASTER_FILE = "master_database.parquet"
 LOG_FILE = "master_update_log.csv"
+BACKUP_LOG_FILE = "master_update_log_backup.xlsx"
 SEARCH_COLUMN = "Mobile"
+BUCKET_NAME = "batch-cleaner"
 
 # ←←← حط هنا اليوزرين اللي ليهم صلاحية إدارة البيانات
 MASTER_ALLOWED_USERS = ["admin", "salma"]   # غيّر الاسم الثاني زي ما تحب
@@ -31,6 +33,44 @@ def normalize_mobile(series: pd.Series) -> pd.Series:
 
 def get_egypt_time():
     return datetime.now(pytz.timezone("Africa/Cairo")).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def get_supabase():
+    try:
+        from supabase import create_client
+        url = st.secrets["supabase"]["url"]
+        key = st.secrets["supabase"]["key"]
+        return create_client(url, key)
+    except Exception as e:
+        st.error(f"تعذر الاتصال بـ Supabase. تأكد من الـ Secrets. ({e})")
+        return None
+
+
+def download_from_supabase(filename: str):
+    client = get_supabase()
+    if client is None:
+        return None
+    try:
+        return client.storage.from_(BUCKET_NAME).download(filename)
+    except Exception:
+        return None
+
+
+def upload_to_supabase(filename: str, content: bytes) -> bool:
+    client = get_supabase()
+    if client is None:
+        return False
+    try:
+        try:
+            client.storage.from_(BUCKET_NAME).remove([filename])
+        except Exception:
+            pass
+        client.storage.from_(BUCKET_NAME).upload(filename, content)
+        return True
+    except Exception as e:
+        st.error(f"فشل رفع الملف إلى Supabase: {e}")
+        return False
+
 
 
 def create_excel_download(df: pd.DataFrame, sheet_name: str = "Data") -> bytes:
@@ -69,16 +109,34 @@ def create_excel_download(df: pd.DataFrame, sheet_name: str = "Data") -> bytes:
 
 
 def load_master() -> pd.DataFrame:
-    if not os.path.exists(MASTER_FILE):
-        return pd.DataFrame()
-    try:
-        return pd.read_parquet(MASTER_FILE)
-    except Exception:
-        return pd.DataFrame()
+    data = download_from_supabase(MASTER_FILE)
+    if data:
+        try:
+            return pd.read_parquet(BytesIO(data))
+        except Exception:
+            pass
+
+    if os.path.exists(MASTER_FILE):
+        try:
+            return pd.read_parquet(MASTER_FILE)
+        except Exception:
+            pass
+
+    return pd.DataFrame()
 
 
 def save_master(df: pd.DataFrame):
-    df.to_parquet(MASTER_FILE, index=False)
+    buffer = BytesIO()
+    df.to_parquet(buffer, index=False)
+    content = buffer.getvalue()
+
+    upload_to_supabase(MASTER_FILE, content)
+
+    try:
+        with open(MASTER_FILE, "wb") as f:
+            f.write(content)
+    except Exception:
+        pass
 
 
 def get_master_mobile_set() -> set:
@@ -90,7 +148,6 @@ def get_master_mobile_set() -> set:
 
 
 def log_update(action: str, before: int, after: int, added: int, username: str):
-    # الصف الجديد فقط
     new_row = {
         "الوقت": get_egypt_time(),
         "المستخدم": username,
@@ -101,17 +158,28 @@ def log_update(action: str, before: int, after: int, added: int, username: str):
     }
     new_df = pd.DataFrame([new_row])
 
-    # 1. الحفظ في CSV
     if os.path.exists(LOG_FILE):
         old_csv = pd.read_csv(LOG_FILE)
         full_csv = pd.concat([old_csv, new_df], ignore_index=True)
     else:
-        full_csv = new_df
+        remote_log = download_from_supabase(LOG_FILE)
+        if remote_log:
+            try:
+                old_csv = pd.read_csv(BytesIO(remote_log))
+                full_csv = pd.concat([old_csv, new_df], ignore_index=True)
+            except Exception:
+                full_csv = new_df
+        else:
+            full_csv = new_df
 
     full_csv.to_csv(LOG_FILE, index=False)
 
-    # 2. النسخ الاحتياطي في Excel
-    BACKUP_LOG_FILE = "master_update_log_backup.xlsx"
+    try:
+        csv_bytes = full_csv.to_csv(index=False).encode("utf-8")
+        upload_to_supabase(LOG_FILE, csv_bytes)
+    except Exception:
+        pass
+
     try:
         if os.path.exists(BACKUP_LOG_FILE):
             old_backup = pd.read_excel(BACKUP_LOG_FILE, dtype=str)
@@ -120,6 +188,10 @@ def log_update(action: str, before: int, after: int, added: int, username: str):
             full_backup = new_df
 
         full_backup.to_excel(BACKUP_LOG_FILE, index=False)
+
+        backup_buffer = BytesIO()
+        full_backup.to_excel(backup_buffer, index=False)
+        upload_to_supabase(BACKUP_LOG_FILE, backup_buffer.getvalue())
     except Exception as e:
         print(f"خطأ في حفظ الـ Backup: {e}")
 
@@ -316,14 +388,25 @@ def render_master_management():
         c1, c2 = st.columns(2)
         with c1:
             if st.button("نعم، امسح كل شيء", type="primary"):
-                before = master_count
-                if os.path.exists(MASTER_FILE):
-                    os.remove(MASTER_FILE)
-                log_update("مسح كامل", before, 0, 0, st.session_state.get("username", "unknown"))
-                st.session_state["confirm_clear_master"] = False
-                st.success("تم مسح القاعدة بالكامل")
-                st.rerun()
-        with c2:
+               before = master_count
+
+    # مسح من Supabase
+    client = get_supabase()
+    if client:
+        try:
+            client.storage.from_(BUCKET_NAME).remove([MASTER_FILE])
+        except Exception:
+            pass
+
+    # مسح الملف المحلي لو موجود
+    if os.path.exists(MASTER_FILE):
+        os.remove(MASTER_FILE)
+
+    log_update("مسح كامل", before, 0, 0, st.session_state.get("username", "unknown"))
+    st.session_state["confirm_clear_master"] = False
+    st.success("تم مسح القاعدة بالكامل")
+    st.rerun()
+    with c2:
             if st.button("إلغاء"):
                 st.session_state["confirm_clear_master"] = False
                 st.rerun()
