@@ -200,7 +200,7 @@ def log_update(action: str, before: int, after: int, added: int, username: str):
 # قسم إدارة البيانات (للمسؤولين فقط)
 # ==================================================
 def render_master_management():
-    st.markdown("## 🔐 إدارة البيانات الرئيسية")
+    st.markdown("## 🔐 Master Data Management")
     st.caption("هذا القسم متاح فقط للمستخدمين المصرح لهم")
 
     master_df = load_master()
@@ -221,7 +221,7 @@ def render_master_management():
     with c1:
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 1.2rem; border-radius: 16px; text-align: center;">
-            <p style="color: #c4b5fd; margin: 0; font-size: 0.9rem;">إجمالي السجلات</p>
+            <p style="color: #c4b5fd; margin: 0; font-size: 0.9rem;">Total Records</p>
             <p style="color: white; font-size: 1.8rem; font-weight: 800; margin: 0.3rem 0 0 0;">{master_count:,}</p>
         </div>
         """, unsafe_allow_html=True)
@@ -229,7 +229,7 @@ def render_master_management():
     with c2:
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #059669, #10b981); padding: 1.2rem; border-radius: 16px; text-align: center;">
-            <p style="color: #a7f3d0; margin: 0; font-size: 0.9rem;">موبايلات فريدة</p>
+            <p style="color: #a7f3d0; margin: 0; font-size: 0.9rem;">Unique Mobile Numbers</p>
             <p style="color: white; font-size: 1.8rem; font-weight: 800; margin: 0.3rem 0 0 0;">{unique_count:,}</p>
         </div>
         """, unsafe_allow_html=True)
@@ -245,7 +245,7 @@ def render_master_management():
                 pass
         st.markdown(f"""
         <div style="background: linear-gradient(135deg, #d97706, #f59e0b); padding: 1.2rem; border-radius: 16px; text-align: center;">
-            <p style="color: #fde68a; margin: 0; font-size: 0.9rem;">آخر تحديث</p>
+            <p style="color: #fde68a; margin: 0; font-size: 0.9rem;">Last Updated</p>
             <p style="color: white; font-size: 1.1rem; font-weight: 700; margin: 0.3rem 0 0 0;">{last_update}</p>
         </div>
         """, unsafe_allow_html=True)
@@ -279,7 +279,7 @@ def render_master_management():
         with e1:
             excel_all = create_excel_download(master_df, "All_Records")
             st.download_button(
-                "📥 تصدير كل السجلات",
+                "📥 Export All Records",
                 data=excel_all,
                 file_name=f"All_Records_{datetime.now().strftime('%Y%m%d')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -307,7 +307,7 @@ def render_master_management():
                 dup_df = master_df.loc[dup_mask].copy()
                 excel_dups = create_excel_download(dup_df, "Duplicate_Mobiles")
                 st.download_button(
-                    "📥 تصدير المكررين",
+                    "📥 Export Duplicates",
                     data=excel_dups,
                     file_name=f"Duplicate_Mobiles_{datetime.now().strftime('%Y%m%d')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -315,12 +315,12 @@ def render_master_management():
                     key="export_dups"
                 )
             else:
-                st.button("📥 تصدير المكررين", disabled=True, use_container_width=True)
+                st.button("📥 Export Duplicates", disabled=True, use_container_width=True)
 
     st.markdown("---")
 
     # ---- إضافة بيانات ----
-    st.markdown("### 🚀 إضافة بيانات جديدة")
+    st.markdown("### 🚀 Add New Records")
 
     update_file = st.file_uploader(
         "ارفع ملف Excel (البيانات التاريخية أو السجلات الجديدة)",
@@ -379,7 +379,7 @@ def render_master_management():
 
        # ---- زرار المسح ----
     if master_count > 0:
-        if st.button("🗑️ مسح القاعدة بالكامل", use_container_width=True):
+        if st.button("🗑️ Clear Master Database", use_container_width=True):
             st.session_state["confirm_clear_master"] = True
 
     if st.session_state.get("confirm_clear_master"):
@@ -412,7 +412,7 @@ def render_master_management():
                     st.session_state.get("username", "unknown"),
                 )
                 st.session_state["confirm_clear_master"] = False
-                st.success("تم مسح القاعدة بالكامل")
+                st.success("تم Clear Master Database")
                 st.rerun()
         with c2:
             if st.button("إلغاء"):
@@ -421,7 +421,7 @@ def render_master_management():
 
     # ---- سجل العمليات ----
     st.markdown("---")
-    st.markdown("### 📜 سجل العمليات")
+    st.markdown("### 📜 Activity Log")
 
     if os.path.exists(LOG_FILE):
         try:
@@ -437,7 +437,7 @@ def render_master_management():
 # قسم فحص شيت البنك (متاح للجميع)
 # ==================================================
 def render_bank_check():
-    st.markdown("## 📥 فحص شيت البنك")
+    st.markdown("## 📥 Bank File Checker")
 
     master_count = len(load_master())
     if master_count == 0:
@@ -510,7 +510,7 @@ def render_bank_check():
     st.markdown("### 📊 النتائج")
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("إجمالي البنك", f"{summary['total']:,}")
+    m1.metric("Total Bank Records", f"{summary['total']:,}")
     m2.metric("Duplicates", f"{summary['duplicates']:,}")
     m3.metric("Clean", f"{summary['clean']:,}")
 
@@ -534,13 +534,13 @@ def render_bank_check():
 
     st.markdown("---")
     st.markdown("### 🟢 Clean Batch")
-    st.success(f"الملف النظيف فيه **{len(clean_df):,}** سجل")
+    st.success(f"Clean Records فيه **{len(clean_df):,}** سجل")
 
     with st.expander("👁️ معاينة Clean"):
         st.dataframe(clean_df.head(80), use_container_width=True, height=320)
 
     st.download_button(
-        "📥 تحميل Clean Batch",
+        "📥 Download Clean Batch",
         data=create_excel_download(clean_df, "Clean_Batch"),
         file_name="Clean_Batch.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -569,7 +569,7 @@ def render_batch_cleaner():
 
     # ---- التبويبات ----
     if is_allowed:
-        tab1, tab2 = st.tabs(["📥 فحص شيت البنك", "🔐 إدارة البيانات الرئيسية"])
+        tab1, tab2 = st.tabs(["📥 Bank File Checker", "🔐 Master Data Management"])
         with tab1:
             render_bank_check()
         with tab2:
