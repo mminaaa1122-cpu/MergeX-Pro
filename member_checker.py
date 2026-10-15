@@ -120,18 +120,21 @@ def parse_expiry(value: Any) -> tuple[pd.Period | None, str]:
     return None, raw
 
 
+
 def get_sql_config() -> dict[str, Any]:
-    """Read credentials from st.secrets first, then environment variables."""
-    secret_config: dict[str, Any] = {}
+    """Read SQL Server credentials from Streamlit secrets or environment."""
+    secret_config = {}
+
     try:
         if "sqlserver" in st.secrets:
             secret_config = dict(st.secrets["sqlserver"])
     except Exception:
         secret_config = {}
 
-    def val(key: str, env_key: str | None = None, default: Any = None) -> Any:
-        if key in secret_config and secret_config[key] not in (None, ""):
-            return secret_config[key]
+    def val(key, env_key=None, default=None):
+        value = secret_config.get(key)
+        if value is not None and str(value).strip():
+            return value
         return os.getenv(env_key or f"MERGEX_SQL_{key.upper()}", default)
 
     config = {
@@ -141,15 +144,25 @@ def get_sql_config() -> dict[str, Any]:
         "password": val("password"),
         "driver": val("driver", default="ODBC Driver 18 for SQL Server"),
         "encrypt": val("encrypt", default=True),
-        "trust_server_certificate": val("trust_server_certificate", default=False),
+        "trust_server_certificate": val(
+            "trust_server_certificate", default=False
+        ),
     }
-    missing = [k for k in ("server", "database", "username", "password") if not config[k]]
+
+    missing = [
+        key for key in ("server", "database", "username", "password")
+        if config[key] is None or not str(config[key]).strip()
+    ]
+
     if missing:
         raise ValueError(
-            "إعدادات SQL Server غير مكتملة. أضف القيم التالية إلى .streamlit/secrets.toml "
-            "أو متغيرات البيئة: " + ", ".join(missing)
+            "إعدادات SQL Server ناقصة أو فارغة: "
+            + ", ".join(missing)
+            + ". تحقق من قسم [sqlserver] داخل Streamlit Cloud Secrets."
         )
+
     return config
+
 
 
 def fetch_company_members() -> pd.DataFrame:
