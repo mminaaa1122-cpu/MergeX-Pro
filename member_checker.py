@@ -120,21 +120,18 @@ def parse_expiry(value: Any) -> tuple[pd.Period | None, str]:
     return None, raw
 
 
-
 def get_sql_config() -> dict[str, Any]:
-    """Read SQL Server credentials from Streamlit secrets or environment."""
-    secret_config = {}
-
+    """Read credentials from st.secrets first, then environment variables."""
+    secret_config: dict[str, Any] = {}
     try:
         if "sqlserver" in st.secrets:
             secret_config = dict(st.secrets["sqlserver"])
     except Exception:
         secret_config = {}
 
-    def val(key, env_key=None, default=None):
-        value = secret_config.get(key)
-        if value is not None and str(value).strip():
-            return value
+    def val(key: str, env_key: str | None = None, default: Any = None) -> Any:
+        if key in secret_config and secret_config[key] not in (None, ""):
+            return secret_config[key]
         return os.getenv(env_key or f"MERGEX_SQL_{key.upper()}", default)
 
     config = {
@@ -144,25 +141,15 @@ def get_sql_config() -> dict[str, Any]:
         "password": val("password"),
         "driver": val("driver", default="ODBC Driver 18 for SQL Server"),
         "encrypt": val("encrypt", default=True),
-        "trust_server_certificate": val(
-            "trust_server_certificate", default=False
-        ),
+        "trust_server_certificate": val("trust_server_certificate", default=False),
     }
-
-    missing = [
-        key for key in ("server", "database", "username", "password")
-        if config[key] is None or not str(config[key]).strip()
-    ]
-
+    missing = [k for k in ("server", "database", "username", "password") if not config[k]]
     if missing:
         raise ValueError(
-            "إعدادات SQL Server ناقصة أو فارغة: "
-            + ", ".join(missing)
-            + ". تحقق من قسم [sqlserver] داخل Streamlit Cloud Secrets."
+            "إعدادات SQL Server غير مكتملة. أضف القيم التالية إلى .streamlit/secrets.toml "
+            "أو متغيرات البيئة: " + ", ".join(missing)
         )
-
     return config
-
 
 
 def fetch_company_members() -> pd.DataFrame:
@@ -193,16 +180,32 @@ def fetch_company_members() -> pd.DataFrame:
     try:
         connection = pyodbc.connect(connection_string, timeout=15)
         return pd.read_sql_query(SQL_QUERY, connection)
+    
     except Exception as exc:
-        # Avoid displaying connection strings or credentials in the UI.
+        import re
+
+        error_text = str(exc)
+
+        # Hide sensitive connection values before showing the error.
+        for key in ("password", "username", "server", "database"):
+            secret = str(cfg.get(key, "") or "")
+            if secret:
+                error_text = error_text.replace(secret, "[HIDDEN]")
+
+        error_text = re.sub(
+            r"(?i)(PWD|PASSWORD|UID|USER ID)\s*=\s*[^;]*",
+            r"\1=[HIDDEN]",
+            error_text,
+        )
+
         raise RuntimeError(
-            "تعذر الاتصال بقاعدة بيانات الشركة أو تنفيذ الاستعلام. "
-            "تحقق من الـ VPN، وصلاحية القراءة، واسم السيرفر وقاعدة البيانات، "
-            "وODBC Driver، واطلب من مسؤول النظام مراجعة سجل الخطأ."
-        ) from exc
+            f"SQL Server diagnostic: {type(exc).__name__}: "
+            f"{error_text[:1000]}"
+        ) from None
     finally:
         if connection is not None:
             connection.close()
+
 
 
 def prepare_company_records(company_df: pd.DataFrame) -> dict[str, pd.DataFrame]:
