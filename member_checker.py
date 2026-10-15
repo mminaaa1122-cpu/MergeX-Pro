@@ -180,32 +180,16 @@ def fetch_company_members() -> pd.DataFrame:
     try:
         connection = pyodbc.connect(connection_string, timeout=15)
         return pd.read_sql_query(SQL_QUERY, connection)
-    
     except Exception as exc:
-        import re
-
-        error_text = str(exc)
-
-        # Hide sensitive connection values before showing the error.
-        for key in ("password", "username", "server", "database"):
-            secret = str(cfg.get(key, "") or "")
-            if secret:
-                error_text = error_text.replace(secret, "[HIDDEN]")
-
-        error_text = re.sub(
-            r"(?i)(PWD|PASSWORD|UID|USER ID)\s*=\s*[^;]*",
-            r"\1=[HIDDEN]",
-            error_text,
-        )
-
+        # Avoid displaying connection strings or credentials in the UI.
         raise RuntimeError(
-            f"SQL Server diagnostic: {type(exc).__name__}: "
-            f"{error_text[:1000]}"
-        ) from None
+            "تعذر الاتصال بقاعدة بيانات الشركة أو تنفيذ الاستعلام. "
+            "تحقق من الـ VPN، وصلاحية القراءة، واسم السيرفر وقاعدة البيانات، "
+            "وODBC Driver، واطلب من مسؤول النظام مراجعة سجل الخطأ."
+        ) from exc
     finally:
         if connection is not None:
             connection.close()
-
 
 
 def prepare_company_records(company_df: pd.DataFrame) -> dict[str, pd.DataFrame]:
