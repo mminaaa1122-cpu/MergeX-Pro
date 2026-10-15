@@ -4,6 +4,7 @@ from io import BytesIO
 import os
 from datetime import datetime
 import pytz
+from ops_log import log_operation
 
 # ==================================================
 # إعدادات
@@ -492,6 +493,15 @@ def render_bank_check():
                     "duplicates": len(dup_df),
                     "clean": len(clean_df),
                 }
+                log_operation(
+                    "Batch Cleaner", "فحص ملف بنك",
+                    file_name=bank_file.name,
+                    metrics={
+                        "total": len(bank_df),
+                        "duplicates": len(dup_df),
+                        "clean": len(clean_df),
+                    },
+                )
                 st.success("✅ Validation Completed Successfully")
                 st.balloons()
 

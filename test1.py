@@ -15,6 +15,9 @@ from openpyxl.styles import Font, Alignment, PatternFill
 import os
 from batch_cleaner import render_batch_cleaner
 from member_checker import render_member_checker
+from reports import render_reports
+from settings import render_settings, verify_user, get_allowed_modules
+from ops_log import log_operation
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
 # ────────────────────────────────────────────────
@@ -327,7 +330,13 @@ USERS = {
 
 LOG_FILE = "login_logs.xlsx"
 
-
+MODULES = [
+    "📊 Merge & Process",
+    "🧹 Batch Cleaner",
+    "🔎 Member Checker",
+    "📋 Reports",
+    "⚙️ Settings",
+]
 
 FINAL_COLUMNS = [
     "Card Holder Name", "Address", "Mobile", "Home Phone", "Office Phone1", "Office Phone2",
@@ -522,8 +531,8 @@ def show_login_page():
             submitted = st.form_submit_button("دخول 🚀", use_container_width=True)
 
             if submitted:
-                user = USERS.get(username.strip().lower())
-                if user and password == user["password"]:
+                user = verify_user(username, password, USERS)
+                if user:
                     st.session_state["authenticated"] = True
                     st.session_state["username"] = username.strip().lower()
                     st.session_state["role"] = user["role"]
@@ -555,12 +564,12 @@ def main():
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("📊 لوحة التحكم", use_container_width=True, type="primary"):
+        if st.button("📊 Dashboard", use_container_width=True, type="primary"):
             st.session_state["ask_dashboard_password"] = True
             st.rerun()
 
     with col2:
-        if st.button("🚪 تسجيل الخروج", use_container_width=True):
+        if st.button("🚪 Log Out", use_container_width=True):
             log_event("خروج", success=True, note="خرج من الموقع", username=st.session_state.get("username", "-"))
             for key in ["authenticated", "username", "role", "name", "ask_dashboard_password", "dashboard_unlocked"]:
                 if key in st.session_state:
@@ -572,7 +581,7 @@ def main():
 
     # ─── طلب باسورد لوحة التحكم ───
     if st.session_state.get("ask_dashboard_password"):
-        st.subheader("🔐 دخول لوحة التحكم")
+        st.subheader("🔐 دخول Dashboard")
         with st.form("dashboard_pass_form"):
             pwd = st.text_input("أدخل باسورد الأدمن", type="password")
             submitted = st.form_submit_button("دخول")
@@ -581,12 +590,12 @@ def main():
                 if pwd == USERS["admin"]["password"]:
                     st.session_state["dashboard_unlocked"] = True
                     st.session_state["ask_dashboard_password"] = False
-                    log_event("دخول لوحة التحكم", success=True, note="فتح لوحة التحكم", username=st.session_state.get("username", "-"))
+                    log_event("دخول Dashboard", success=True, note="فتح Dashboard", username=st.session_state.get("username", "-"))
                     st.success("✅ تم الدخول")
                     time.sleep(0.5)
                     st.rerun()
                 else:
-                    log_event("محاولة دخول لوحة التحكم", success=False, note="باسورد خاطئ", username=st.session_state.get("username", "-"))
+                    log_event("محاولة دخول Dashboard", success=False, note="باسورد خاطئ", username=st.session_state.get("username", "-"))
                     st.error("❌ باسورد خاطئ - تم تسجيل المحاولة")
 
         if st.button("← رجوع"):
@@ -649,16 +658,14 @@ def main():
         st.markdown("---")
 
         selected_module = st.radio(
-            "القائمة الرئيسية",
-            [
-                "📊 Merge & Process",
-                "🧹 Batch Cleaner",
-                "🔎 Member Checker",
-                "📋 Reports",
-                "⚙️ Settings"
-            ],
-            key="main_module"
-        )
+    "القائمة الرئيسية",
+    get_allowed_modules(
+        st.session_state.get("username", ""),
+        st.session_state.get("role", "user"),
+        MODULES,
+    ),
+    key="main_module",
+)
 
         st.markdown("---")
 
@@ -684,32 +691,17 @@ def main():
 
     elif selected_module == "🔎 Member Checker":
 
-        st.markdown("<h1>🔎 Member Checker</h1>", unsafe_allow_html=True)
+        render_member_checker()
 
-        st.info(
-            "🚧 Member Checker سيتم ربطه بالسيستم بعد تجهيز SQL Connector."
-        )
-
+        
         return
 
     elif selected_module == "📋 Reports":
-
-        st.markdown("<h1>📋 Reports</h1>", unsafe_allow_html=True)
-
-        st.info(
-            "🚧 قسم التقارير سيتم تجهيزه بعد اكتمال الـ Modules الأساسية."
-        )
-
+        render_reports()
         return
 
     elif selected_module == "⚙️ Settings":
-
-        st.markdown("<h1>⚙️ Settings</h1>", unsafe_allow_html=True)
-
-        st.info(
-            "🚧 إعدادات النظام سيتم تجهيزها لاحقًا."
-        )
-
+        render_settings(TEMPLATES, USERS, MODULES, default_districts=VALID_DISTRICTS)
         return
 
    
@@ -1049,6 +1041,12 @@ def main():
                         data=output.getvalue(),
                         file_name=f"MergeX_Output_{int(time.time())}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                    log_operation(
+                        "Merge & Process", "توليد ملف مدمج",
+                        file_name=", ".join(f.name for f in uploaded_files)[:200],
+                        metrics={"total": len(df_out), "duplicates": sum(dup_mask)},
+                        note=selected_template_key,
                     )
                     st.balloons()
     # تذييل الصفحة
