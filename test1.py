@@ -18,6 +18,71 @@ from member_checker import render_member_checker
 from reports import render_reports
 from settings import render_settings, verify_user, get_allowed_modules
 from ops_log import log_operation
+
+
+
+import os
+import streamlit as st
+
+def diagnose_sql_server():
+    st.subheader("🔎 تشخيص اتصال SQL Server")
+
+    # 1. فحص مكتبة pyodbc
+    try:
+        import pyodbc
+        st.success("✅ مكتبة pyodbc مثبتة")
+    except ImportError:
+        st.error("❌ مكتبة pyodbc غير مثبتة")
+        return
+
+    # 2. فحص إعدادات الاتصال دون عرض قيمها
+    try:
+        secrets = st.secrets
+        required = ["server", "database", "username", "password"]
+
+        missing = [
+            key for key in required
+            if not str(secrets.get(key, "")).strip()
+        ]
+
+        if missing:
+            st.error(
+                "❌ إعدادات ناقصة: " + ", ".join(missing)
+            )
+            st.info(
+                "راجع Settings → Secrets في Streamlit Cloud"
+            )
+            return
+
+        st.success("✅ إعدادات الاتصال المطلوبة موجودة")
+
+    except Exception:
+        st.error("❌ تعذرت قراءة إعدادات Secrets")
+        return
+
+    # 3. فحص تعريفات ODBC المتاحة
+    try:
+        drivers = pyodbc.drivers()
+
+        if drivers:
+            st.write("تعريفات ODBC المتاحة:")
+            st.code("\n".join(drivers))
+        else:
+            st.error("❌ لا توجد تعريفات ODBC متاحة")
+            return
+
+    except Exception:
+        st.error("❌ فشل فحص تعريفات ODBC")
+        return
+
+    st.info(
+        "✅ اكتمل الفحص الأولي. "
+        "الخطوة التالية اختبار الاتصال الفعلي بقاعدة البيانات."
+    )
+
+if st.button("🔍 فحص اتصال SQL Server"):
+    diagnose_sql_server()
+
 # ────────────────────────────────────────────────
 #           إعداد واجهة ستريمليت
 # ────────────────────────────────────────────────
