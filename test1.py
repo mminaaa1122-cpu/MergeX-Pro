@@ -14,7 +14,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 import os
 from batch_cleaner import render_batch_cleaner
-from member_checker import render_member_checker
+from member_checker import render_member_checker, diagnose_sql_connection
 from reports import render_reports
 from settings import render_settings, verify_user, get_allowed_modules
 from ops_log import log_operation
@@ -693,6 +693,11 @@ def main():
     elif selected_module == "🔎 Member Checker":
 
         render_member_checker()
+        if st.button("فحص اتصال قاعدة البيانات"):
+            try:
+                st.json(diagnose_sql_connection())
+            except Exception as exc:
+                st.error(f"{type(exc).__name__}: {str(exc)[:300]}")
 
         
         return

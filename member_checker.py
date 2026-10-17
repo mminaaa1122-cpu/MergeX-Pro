@@ -151,6 +151,54 @@ def get_sql_config() -> dict[str, Any]:
         )
     return config
 
+# دة جديد وهمسحوا انا بجرب دة 
+    
+def diagnose_sql_connection() -> dict[str, str]:
+    import socket
+    import pyodbc
+
+    cfg = get_sql_config()
+    result = {}
+
+    result["Available drivers"] = ", ".join(pyodbc.drivers())
+
+    server = str(cfg["server"]).strip()
+    host = server.split(",")[0].split("\\")[0].strip()
+    port = 1433
+
+    if "," in server:
+        try:
+            port = int(server.split(",")[1].split("\\")[0])
+        except ValueError:
+            result["TCP"] = "Invalid port in server setting"
+
+    try:
+        with socket.create_connection((host, port), timeout=5):
+            result["TCP"] = "Connected"
+    except Exception as exc:
+        result["TCP"] = f"{type(exc).__name__}: {exc}"
+
+    try:
+        conn = pyodbc.connect(
+            f"DRIVER={{{cfg['driver']}}};"
+            f"SERVER={cfg['server']};"
+            f"DATABASE={cfg['database']};"
+            f"UID={cfg['username']};"
+            f"PWD={cfg['password']};"
+            f"Encrypt={'yes' if str(cfg['encrypt']).lower() in {'1','true','yes','on'} else 'no'};"
+            f"TrustServerCertificate={'yes' if str(cfg['trust_server_certificate']).lower() in {'1','true','yes','on'} else 'no'};",
+            timeout=5,
+        )
+        conn.close()
+        result["SQL connection"] = "Connected successfully"
+    except Exception as exc:
+        result["SQL connection"] = (
+            f"{type(exc).__name__}: {str(exc)[:300]}"
+        )
+
+    return result
+
+
 
 def fetch_company_members() -> pd.DataFrame:
     """Connect to SQL Server and fetch the latest record per mobile."""
